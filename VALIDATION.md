@@ -1,0 +1,94 @@
+# Registro de validação
+
+## Revisão para publicação — 28/09/2026
+
+- README revisado: quatro termos por rodada, mínimo de 25%, saudação Discord, acesso por catálogo Mercado Livre e limitações reais de cada loja.
+- Adicionados Checkstyle básico e JaCoCo ao `verify`, sem exclusão de classes de produção ou redução de limites existentes (não havia limite de cobertura).
+- `mvnw -Dpostgres=true verify`: 39 testes, 38 aprovados e um teste HTTP externo opt-in não executado; PostgreSQL temporário validado; zero violações Checkstyle. Cobertura de linhas 78,9% e de branches 55,1%.
+- Auxiliar OAuth: três testes Node aprovados.
+- Scanner de segredos: nenhum segredo identificado nos arquivos publicáveis. Inspeção adicional de 217 arquivos de texto locais em `.runtime` e `target` não encontrou padrões de credenciais. Binários de banco/backups não foram inspecionados; são excluídos integralmente do Git. A inspeção não é garantia de ausência de segredos.
+- Credenciais reais permanecem no `.env` ignorado. Credenciais já compartilhadas fora do repositório devem ser rotacionadas no provedor; essa revisão não as revoga.
+
+## Mercado Livre: coleta real de catálogo — 28/09/2026
+
+- Token renovado com sucesso; `/users/me` 200 e busca geral `/sites/MLB/search` 403, usando o mesmo token.
+- Identificado e validado endpoint oficial `/products/{catalog_id}/items`, que retorna preços mesmo sem `buy_box_winner` no detalhe do catálogo.
+- Coletor alterado para busca de catálogo → detalhes → ofertas. Links e histórico vinculados ao anúncio, exclusão de usados/compra mínima em quantidade, sem desconto inventado quando `original_price` está ausente.
+- Corrigidos casos reais de permalink vazio e lista de ofertas 404. Negativas 401/403 continuam interrompendo a coleta.
+- Build Docker: 36 testes, 34 aprovados e dois opcionais ignorados, sem falhas.
+- Serviço implantado e `/api/stores` confirmou `MERCADO_LIVRE: OK`, cinco produtos persistidos em 28/09/2026 14:19:47 UTC. IDs locais 39–43, anúncios distintos do iPhone 15 128 GB azul, preços entre R$ 4.899,00 e R$ 5.572,00 no momento da consulta.
+- Primeiras observações sem preço original: não há desconto confirmado nem validação de envio de alerta Mercado Livre nesta etapa. A coleta/histórico está validada; alerta exige uma queda real ou outro critério atendido.
+- Limitações: cobertura de catálogo e primeira página de ofertas; renovação automática de tokens ainda pendente. A pesquisa geral continua negada. Detalhes em `docs/MERCADO-LIVRE-DIAGNOSTICO.md`.
+
+## Investigação de acesso — 23/09/2026
+
+- Usuário confirmou que não possui aplicação Mercado Livre nem acesso Amazon Associados/Creators API.
+- Uma consulta pública de diagnóstico por loja confirmou: API Mercado Livre 403 `forbidden`; Amazon 503 com título “Amazon.com.br Algo deu errado”. Não foram usados proxies ou técnicas de contorno.
+- Não há correção de seletor que extraia produtos dessas respostas. O acesso às duas lojas continua pendente; não se declara resolução funcional.
+- `/api/stores` agora inclui descrição do erro e próximo passo. O cooldown conserva a causa 403, em vez de substituí-la indevidamente por 429.
+- Página de erro conhecida da Amazon, inclusive se vier com HTTP 200, é classificada como indisponibilidade da loja, não como quebra do parser.
+- Guia: `docs/ACESSO-LOJAS.md`. Verificador de token Mercado Livre: `scripts/check-mercadolivre.ps1` (somente leitura, sem impressão do segredo; depende de token real).
+- Build Docker: 29 testes aprovados, 2 testes PostgreSQL opt-in não executados, zero falhas/erros.
+
+## Estado atual — Docker, 23/09/2026
+
+- Docker Desktop ativo após reinicialização; imagem do bot construída com sucesso, incluindo os testes do Dockerfile.
+- Backup PostgreSQL criado em `.runtime/backups/before-docker-20260923-102326.dump`.
+- Migração verificada: 5 produtos, 5 registros de histórico, 5 alertas, todos os 5 com status SENT; nenhum acompanhado ou cupom.
+- PostgreSQL no volume `price-alert-bot_postgres-data`, saudável. Aplicação em http://localhost:8080, com `/actuator/health` retornando UP e Discord configurado.
+- Banco local original preservado em `.runtime/postgres-data` e parado. Agora os dados ativos ficam no volume Docker; não iniciar a instalação local simultaneamente.
+- Limite solicitado pelo usuário mantido em 10%. Registro de alertas enviados restaurado para impedir reenvio dos mesmos produtos/preços.
+- Primeira coleta no Docker confirmou 5 produtos da KaBuM e encontrou um produto novo. O alerta 6 foi enviado e confirmado pelo Discord às 10:25 de 23/09/2026, sem repetir os cinco alertas antigos.
+- Build Docker: 28 testes aprovados e 2 testes PostgreSQL opt-in não executados, zero falhas/erros.
+- Mercado Livre e Pichau retornaram 403; Amazon retornou uma página sem produtos reconhecidos (422 do coletor). Essas integrações continuam indisponíveis nesta execução.
+
+As notas abaixo registram as etapas anteriores e as limitações das lojas.
+
+Data: 22/09/2026. Ambiente: Windows, inicialmente com JDK 26.0.1; Java 21 portátil instalado posteriormente. Docker Desktop 4.91.0, Docker Engine CLI 29.8.0, Compose 5.5.1 e WSL 2.7.13 foram instalados. O Windows requer reinicialização para concluir a ativação dos componentes WSL/Virtual Machine Platform; o backend Docker ainda não foi validado.
+
+## Execução local configurada
+
+Atualização: a pedido do usuário, `MIN_STORE_DISCOUNT` foi reduzido de 40 para 10 no `.env` para visualizar alertas. Cinco ofertas reais da KaBuM foram enviadas pelo cliente Java e confirmadas pelo Discord (`alerts` 1 a 5, estado `SENT`, às 21:14 de 22/09/2026).
+
+O primeiro envio falhou por resolução DNS do Discord no cliente Netty. O cliente passou a usar o resolvedor padrão do sistema. Antes de recolocar os cinco alertas na fila, o usuário confirmou que não havia recebido nenhuma mensagem. Os oito testes de HTTP/Discord passaram com Java 21.
+
+- Java Temurin 21.0.12.1 e PostgreSQL 17.11 instalados de forma portátil em `.runtime`, com verificação SHA-256 dos downloads.
+- Bot iniciado em segundo plano em http://localhost:8080, com o webhook do usuário configurado.
+- PostgreSQL persistente em `.runtime/postgres-data`, restrito a 127.0.0.1:5432 e autenticado com senha SCRAM.
+- O agendador coletou e gravou cinco produtos reais da KaBuM. Nesta rodada, os descontos anunciados foram de aproximadamente 10% a 15%; nenhum alerta de 40% foi forçado.
+- Parada e reinicialização verificadas: os cinco produtos permaneceram no banco. Repetir o comando de início não criou outra instância.
+- Codificação UTF-8 dos nomes dos produtos conferida na API.
+- O bot foi deixado ativo após a verificação. Para reiniciar depois de desligar o computador: `scripts/start-local.ps1`. Não foi instalado serviço de inicialização automática do Windows.
+- Busca `teclado` adicionada no início de `MONITOR_QUERIES`, preservando as demais categorias.
+
+## Evidência real
+
+- Maven compilou a aplicação.
+- Verificação final `-Dpostgres=true verify`: 29 testes aprovados, zero falhas/erros; um teste HTTP opt-in não repetido nessa rodada. Esse teste público havia passado na execução anterior com `-Dlive=true`.
+- JAR executável gerado em `target/price-alert-bot-0.1.0.jar`.
+- Spring Boot iniciou com servidor HTTP e PostgreSQL 14.22 temporário real.
+- Flyway aplicou V1 e Hibernate validou o esquema.
+- GET /actuator/health retornou UP; GET /api/products retornou os dados persistidos.
+- O coletor Java da KaBuM consultou https://www.kabum.com.br/busca/teclado pelo cliente HTTP de produção.
+- Cinco produtos reais foram normalizados, analisados e persistidos com histórico. Exemplos de IDs: 93160, 538689, 506048, 416203. Os preços são observações transitórias; este arquivo não anuncia ofertas.
+- PostgreSQL foi encerrado ao final do teste. O teste não deixa um serviço de produção ativo.
+
+## Restrições observadas
+
+- Mercado Livre: API sem token e busca pública retornaram 403. Não houve tentativa de superar o bloqueio.
+- Pichau: consulta pública de busca retornou 403.
+- Amazon: ferramentas HTTP tiveram respostas inconsistentes, incluindo 503; não foi possível confirmar coleta de produto.
+- KaBuM: a busca genérica por ofertas redirecionou para uma página sem produtos; a busca por teclado retornou dados reais utilizáveis.
+- Webhook Discord configurado pelo usuário. Uma mensagem de teste real foi enviada por `scripts/test-discord.ps1`, com `wait=true`, e o Discord confirmou o recebimento. O fluxo completo de uma oferta real até o canal ainda não foi confirmado.
+- Configuração Compose validada com `docker compose config --quiet`. Os contêineres ainda não foram iniciados: a ativação dos componentes Windows depende de reinicialização.
+
+## Como reproduzir
+
+```powershell
+.\mvnw.cmd -Dpostgres=true -Dlive=true test
+```
+
+Relatórios automatizados em `target/surefire-reports`. Respostas brutas e logs locais de diagnóstico ficam em `.runtime`, ignorado pelo Git.
+
+O fluxo KaBuM → HTTP real → PostgreSQL → análise → Discord foi confirmado com o limite de teste de 10%. Isso não comprova funcionamento das outras três lojas nem execução com Docker. O projeto não é declarado completamente validado para todas as integrações.
+

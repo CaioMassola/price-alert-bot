@@ -1,0 +1,10 @@
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+.git
+target
+.runtime

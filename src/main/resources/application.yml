@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: price-alert-bot
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/pricealert}
+    username: ${DATABASE_USERNAME:pricealert}
+    password: ${DATABASE_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  task:
+    scheduling:
+      pool:
+        size: 2
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  error:
+    include-message: never
+    include-stacktrace: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+monitor:
+  tracked-products:
+    interval: ${MONITOR_TRACKED_INTERVAL:PT5M}
+  promotions:
+    interval: ${MONITOR_PROMOTION_INTERVAL:PT15M}
+  request-gap: ${MONITOR_REQUEST_GAP:PT15S}
+  timeout: PT20S
+  cooldown: ${ALERT_COOLDOWN:PT6H}
+  history-minimum-age: P7D
+  min-store-discount: ${MIN_STORE_DISCOUNT:25}
+  min-historical-discount: ${MIN_HISTORICAL_DISCOUNT:25}
+  tracked-drop: 10
+  minimum-samples: 3
+  max-products: 5
+  promotions-enabled: ${MONITOR_PROMOTIONS_ENABLED:true}
+  queries: ${MONITOR_QUERIES:smartphone,ps5,teclado gamer,notebook,xbox,mouse gamer,iphone,jogos ps5,memoria ram,notebook gamer,samsung galaxy,jogos xbox,ssd,gift card playstation,headset gamer,motorola,gift card xbox,placa de video,gift card steam,monitor gamer,controle ps5,processador,controle xbox,placa mae,nintendo switch,jogos nintendo switch,fonte computador}
+discord:
+  webhook-url: ${DISCORD_WEBHOOK_URL:}
+mercadolivre:
+  access-token: ${MERCADO_LIVRE_ACCESS_TOKEN:}
+logging:
+  level:
+    root: INFO
+    reactor.netty.http.client: OFF
+    org.springframework.web.reactive.function.client: OFF
+    org.springframework.http.client.reactive: OFF
+
