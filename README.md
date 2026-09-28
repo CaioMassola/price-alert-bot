@@ -8,8 +8,10 @@ Bot pessoal em Java 21 e Spring Boot para descobrir descontos, acompanhar preço
 | --- | --- |
 | KaBuM | Coleta e entrega de ofertas reais no Discord confirmadas |
 | Mercado Livre | Coleta de ofertas de catálogo e histórico confirmados; exige token válido |
-| Amazon | Coletor público implementado, mas coleta indisponível no ambiente testado; Creators API não implementada |
+| Amazon | Pendente — integração funcional não concluída; não coleta nem envia ofertas validadas |
 | Pichau | Coletor implementado, mas acesso público retornou 403 no ambiente testado |
+
+**Amazon ainda não está integrada funcionalmente.** Existe uma tentativa de leitura de páginas públicas no código, mas ela não foi validada como operacional. O acesso ao Amazon Associados/Creators API não foi habilitado, e o cliente dessa API não foi implementado. Portanto, Amazon não deve ser considerada uma loja suportada nesta versão; adicionar credenciais ao `.env` não basta para ativá-la.
 
 Mercado Livre usa `/products/search`, `/products/{id}` e `/products/{id}/items`. A busca geral `/sites/MLB/search?q=...` retornou 403; não foi confirmada a política interna responsável. Catálogo não cobre todo o marketplace. Links diretos de anúncios ainda dependem de `/items/{id}`. **Renovação automática de tokens ainda não implementada:** ao renovar pelo OAuth oficial, salve os novos tokens no `.env` e recrie o serviço.
 
