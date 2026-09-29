@@ -9,6 +9,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.time.*;
 import static org.assertj.core.api.Assertions.*;
 class PublicHttpClientTest {
+    @Test void handlesHttpBoundaryStatusesAndAllChallengeMarkers() {
+        for(int code:new int[]{199,302,408}) {
+            var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(org.springframework.http.HttpStatusCode.valueOf(code)).build())).build();
+            var http=new PublicHttpClient(web,TestSupport.config(),delay->{});
+            assertThatThrownBy(()->http.get(Store.KABUM,"https://www.kabum.com.br/produto/1"," "))
+                .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(code));
+        }
+        for(String body:java.util.List.of("validatecaptcha","cf-chl-","verifique se você é humano")) {
+            var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(HttpStatus.OK).body(body).build())).build();
+            assertThatThrownBy(()->new PublicHttpClient(web,TestSupport.config()).get(Store.KABUM,"https://www.kabum.com.br",null))
+                .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(403));
+        }
+        assertThat(PublicHttpClient.retryAt("Thu, 1 Jan 1970 00:00:00 GMT")).isAfter(Instant.now().plusSeconds(50));
+    }
+    @Test void rejectedTokenStaysBlockedUntilCredentialsChange() {
+        var calls=new AtomicInteger();
+        var web=WebClient.builder().exchangeFunction(r->{calls.incrementAndGet();return Mono.just(ClientResponse.create(HttpStatus.UNAUTHORIZED).build());}).build();
+        var http=new PublicHttpClient(web,TestSupport.config());
+        for(int i=0;i<2;i++) assertThatThrownBy(()->http.get(Store.MERCADO_LIVRE,"https://api.mercadolibre.com/users/me","same"))
+            .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(401));
+        assertThat(calls.get()).isEqualTo(1);
+    }
+    @Test void emptyExchangeCompletionIsReportedAsMissingResponse() {
+        var web=org.mockito.Mockito.mock(WebClient.class);
+        var request=org.mockito.Mockito.mock(WebClient.RequestHeadersUriSpec.class,org.mockito.Mockito.RETURNS_SELF);
+        org.mockito.Mockito.when(web.get()).thenReturn(request);
+        org.mockito.Mockito.when(request.exchangeToMono(org.mockito.ArgumentMatchers.any())).thenReturn(Mono.empty());
+        assertThatThrownBy(()->new PublicHttpClient(web,TestSupport.config()).get(Store.KABUM,"https://www.kabum.com.br",null)).hasMessage("Resposta vazia");
+    }
     @Test void newTokenClearsOnlyAuthenticationPause() {
         var calls=new AtomicInteger();
         var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(

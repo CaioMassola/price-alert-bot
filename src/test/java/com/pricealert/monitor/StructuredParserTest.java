@@ -9,6 +9,43 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class StructuredParserTest {
+    @Test void handlesMetadataVariantsWithoutInferringAvailabilityOrCouponTerms() throws Exception {
+        for(String image:List.of("[]","[\"https://image.test/a\"]","\"https://image.test/a\"","{}"))
+            for(String availability:List.of("InStock","https://schema.org/LimitedAvailability","OutOfStock")) {
+                var node=(com.fasterxml.jackson.databind.node.ObjectNode)mapper.readTree(product("{}"));
+                node.put("sku","explicit-id"); node.put("url",url); node.set("image",mapper.readTree(image));
+                var offer=(com.fasterxml.jackson.databind.node.ObjectNode)node.path("offers").get(0);
+                offer.put("availability",availability); node.set("offers",offer);
+                var result=parser.parse(Store.KABUM,html(node.toString()),url).getFirst();
+                assertThat(result.externalId()).isEqualTo("explicit-id");
+                assertThat(result.available()).isEqualTo(!availability.equals("OutOfStock"));
+            }
+        for(String discount:List.of("{\"discountCode\":\"SALE\"}",
+            "{\"discountCode\":\""+"A".repeat(201)+"\",\"discountAmount\":1}"))
+            assertThat(parser.parse(Store.KABUM,html(product(discount)),url).getFirst().coupon()).isNull();
+        assertThat(parser.parse(Store.KABUM,html(product("{\"discountCode\":\"SALE\",\"discountAmount\":1}")),url).getFirst().coupon().discountValue()).isEqualByComparingTo("1");
+        assertThat(StructuredProductParser.money(null)).isNull();
+        assertThat(StructuredProductParser.money(mapper.nullNode())).isNull();
+        var emptyMapper=mock(ObjectMapper.class); when(emptyMapper.readTree(anyString())).thenReturn(null);
+        assertThat(new StructuredProductParser(emptyMapper).parse(Store.KABUM,html("{}"),url)).isEmpty();
+    }
+    @Test void trackedPagesMatchCanonicalUrlAndRejectUnrelatedProducts() {
+        var http=mock(PublicHttpClient.class);
+        var monitor=new com.pricealert.monitor.kabum.KabumMonitor(http,parser,TestSupport.config(),mapper);
+        when(http.get(eq(Store.KABUM),anyString(),isNull())).thenReturn(html(product("{}").replace("\"name\":", "\"sku\":\"different\",\"name\":")));
+        assertThat(monitor.searchProducts(MonitorRequest.product(url))).hasSize(1);
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.product("https://www.kabum.com.br/produto/999")))
+            .isInstanceOf(StoreAccessException.class);
+    }
+    @Test void discoveryStopsAtConfiguredLimitAndIgnoresNonproductLinks() {
+        var http=mock(PublicHttpClient.class); var config=mock(com.pricealert.config.MonitorConfig.class);
+        when(config.maxProducts()).thenReturn(1);
+        var monitor=new com.pricealert.monitor.kabum.KabumMonitor(http,parser,config,mapper);
+        when(http.get(eq(Store.KABUM),contains("/busca/"),isNull())).thenReturn("<a href='/help'>help</a><a href='/produto/123'>one</a><a href='/produto/456'>two</a>");
+        when(http.get(Store.KABUM,url,null)).thenReturn(html(product("{}")));
+        assertThat(monitor.searchProducts(MonitorRequest.search("keyboard"))).hasSize(1);
+        verify(http,never()).get(eq(Store.KABUM),contains("456"),isNull());
+    }
     final ObjectMapper mapper=new ObjectMapper();
     final StructuredProductParser parser=new StructuredProductParser(mapper);
     final String url="https://www.kabum.com.br/produto/123";

@@ -14,6 +14,11 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ApiControllerTest {
+    @Test void rejectsSearchPagesEvenWhenQueryContainsProductIdentity() {
+        assertThatThrownBy(()->api.track(new ApiController.TrackRequest(Store.MERCADO_LIVRE,"https://www.mercadolivre.com.br/search?item=MLB123",null)))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(tracked,never()).save(any());
+    }
     final ProductRepository products=mock(ProductRepository.class);
     final PriceHistoryRepository history=mock(PriceHistoryRepository.class);
     final TrackedProductRepository tracked=mock(TrackedProductRepository.class);

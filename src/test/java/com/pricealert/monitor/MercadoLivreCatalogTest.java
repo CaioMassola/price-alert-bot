@@ -8,6 +8,55 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class MercadoLivreCatalogTest {
+    @Test void publicFallbackCanReturnAValidStructuredProduct() {
+        var fallback=new MercadoLivreMonitor(http,new StructuredProductParser(mapper),TestSupport.config(),mapper,TestSupport.tokens(""));
+        when(http.get(eq(Store.MERCADO_LIVRE),anyString(),isNull())).thenReturn("""
+            <script type="application/ld+json">{"@type":"Product","name":"Product","sku":"MLB123",
+            "url":"https://produto.mercadolivre.com.br/MLB-123-product","offers":{"price":100,"priceCurrency":"BRL","availability":"InStock"}}</script>
+            """);
+        assertThat(fallback.searchProducts(MonitorRequest.search("product")).getFirst().externalId()).isEqualTo("MLB123");
+    }
+    @Test void validatesCatalogShapeIdentifiersAndActiveStatus() {
+        String search="/products/search?status=active&site_id=MLB&q=teclado&limit=5";
+        for(String body:java.util.List.of("{}","{\"results\":[{\"id\":\"invalid\"}]}")) {
+            response(search,body);
+            assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("teclado"))).isInstanceOf(StoreAccessException.class);
+        }
+        catalog(); response("/products/MLB123","{\"status\":\"inactive\"}");
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("teclado"))).isInstanceOf(StoreAccessException.class);
+        catalog(); response("/products/MLB123/items?limit=5","{}");
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("teclado"))).isInstanceOf(StoreAccessException.class);
+    }
+    @Test void catalogSelectionAndInvalidSellerOffers() {
+        catalog();
+        assertThat(monitor.searchProducts(MonitorRequest.product("https://www.mercadolivre.com.br/produto/p/MLB123"))).hasSize(1);
+        assertThat(monitor.searchProducts(MonitorRequest.product("https://www.mercadolivre.com.br/produto/p/MLB123?wid=MLB456"))).hasSize(1);
+        response("/products/MLB123/items?limit=5","{\"results\":[{\"item_id\":\"bad\"},{\"item_id\":\"MLB1\",\"currency_id\":\"USD\"}]}");
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("teclado"))).isInstanceOf(StoreAccessException.class);
+    }
+    @Test void searchBoundsCatalogRequestsAndDeduplicatesSellerItems() {
+        catalog();
+        response("/products/search?status=active&site_id=MLB&q=teclado&limit=5","{\"results\":["+String.join(",",java.util.Collections.nCopies(6,"{\"id\":\"MLB123\"}"))+"]}");
+        response("/products/MLB123/items?limit=4","{\"results\":[{\"item_id\":\"MLB456\",\"condition\":\"new\",\"currency_id\":\"BRL\",\"price\":100}]}");
+        assertThat(monitor.searchProducts(MonitorRequest.search("teclado"))).hasSize(1);
+        verify(http,times(5)).get(Store.MERCADO_LIVRE,"https://api.mercadolibre.com/products/MLB123","test-token");
+        String offers=java.util.stream.IntStream.range(1,7).mapToObj(i->"{\"item_id\":\"MLB"+i+"\",\"condition\":\"new\",\"currency_id\":\"BRL\",\"price\":100}").collect(java.util.stream.Collectors.joining(","));
+        response("/products/MLB123/items?limit=5","{\"results\":["+offers+"]}");
+        assertThat(monitor.searchProducts(MonitorRequest.search("teclado"))).hasSize(5);
+    }
+    @Test void normalizerRejectsCurrencyAndMarksZeroStockOrClosedItemsUnavailable() throws Exception {
+        assertThatThrownBy(()->monitor.normalize(mapper.readTree("{}"))).isInstanceOf(StoreAccessException.class);
+        for(String state:java.util.List.of("\"available_quantity\":0","\"available_quantity\":1,\"status\":\"closed\"")) {
+            var result=monitor.normalize(mapper.readTree("{\"id\":\"MLB1\",\"title\":\"Product\",\"permalink\":\"https://produto.mercadolivre.com.br/MLB-1\",\"price\":100,\"currency_id\":\"BRL\","+state+"}"));
+            assertThat(result.available()).isFalse();
+        }
+    }
+    @Test void fallbackRecognizesCatalogLinksAndIgnoresOtherLinks() {
+        var fallback=new MercadoLivreMonitor(http,new StructuredProductParser(mapper),TestSupport.config(),mapper,TestSupport.tokens(""));
+        when(http.get(eq(Store.MERCADO_LIVRE),anyString(),isNull())).thenReturn("<a href='https://www.mercadolivre.com.br/help'>help</a><a href='https://www.mercadolivre.com.br/product/p/MLB123'>product</a>","<html></html>");
+        assertThatThrownBy(()->fallback.searchProducts(MonitorRequest.search("phone"))).isInstanceOf(StoreAccessException.class);
+        verify(http).get(Store.MERCADO_LIVRE,"https://www.mercadolivre.com.br/product/p/MLB123",null);
+    }
     @Test void unauthorizedRequestRenewsAndRetriesWithNewToken() {
         var provider=TestSupport.tokens("old"); when(provider.afterUnauthorized("old")).thenReturn("new");
         var renewing=new MercadoLivreMonitor(http,new StructuredProductParser(mapper),TestSupport.config(),mapper,provider);

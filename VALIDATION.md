@@ -1,5 +1,14 @@
 # Registro de validação
 
+## Cobertura completa — 29/09/2026
+
+- `mvnw -Dpostgres=true clean verify`: 116 testes, 115 aprovados, zero falhas e um teste HTTP externo opt-in não executado. PostgreSQL temporário; nenhuma chamada real às lojas ou ao Discord.
+- JaCoCo: 686/686 linhas, 673/673 caminhos condicionais e 5.312/5.312 instruções (100%). Nenhuma classe de produção excluída e nenhum código de produção alterado.
+- `verify` agora exige 100% de linhas, branches e instruções; qualquer queda reprova o build. Zero violações Checkstyle.
+- Novos cenários exercitam entradas inválidas, estoque, cupons, histórico, cooldown, respostas HTTP, filtros de catálogo, entrega ambígua e persistência OAuth em sistemas com e sem suporte a permissões POSIX.
+- Estágio de build Docker/Linux também aprovado com a regra de 100%; os três testes da classe PostgreSQL são opt-in nesse comando. A execução completa com PostgreSQL foi validada no Windows.
+- Cobertura total mede execução dos caminhos instrumentados, não garante ausência de defeitos nem disponibilidade das integrações externas.
+
 ## Página inicial e Swagger — 28/09/2026
 
 - Página responsiva em `/`, com botão `Documentação` para `/swagger-ui/index.html`.

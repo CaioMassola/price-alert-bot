@@ -15,6 +15,85 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.*;
 
 class MercadoLivreTokensTest {
+    @Test void validatesEachRequiredRefreshResponseField() {
+        for(String body:java.util.List.of("", "{\"expires_in\":300}", "{\"expires_in\":301}",
+            "{\"expires_in\":301,\"access_token\":\" \"}",
+            "{\"expires_in\":301,\"access_token\":\"access\"}",
+            "{\"expires_in\":301,\"access_token\":\"access\",\"refresh_token\":\" \"}")) {
+            var tokens=new MercadoLivreTokens(web(new AtomicInteger(),HttpStatus.OK,body),mapper,env());
+            assertThatThrownBy(tokens::accessToken).isInstanceOf(StoreAccessException.class);
+            assertThat(directory.resolve("tokens.json")).doesNotExist();
+        }
+    }
+    @Test void emptyOAuthCompletionDoesNotReplaceCredentials() {
+        var client=org.mockito.Mockito.mock(WebClient.class,org.mockito.Mockito.RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(client.post().uri("https://api.mercadolibre.com/oauth/token")
+            .body(org.mockito.ArgumentMatchers.any(org.springframework.web.reactive.function.BodyInserter.class))
+            .exchangeToMono(org.mockito.ArgumentMatchers.any())).thenReturn(Mono.empty());
+        var tokens=new MercadoLivreTokens(client,mapper,env());
+        assertThatThrownBy(tokens::accessToken).isInstanceOf(StoreAccessException.class);
+        assertThat(directory.resolve("tokens.json")).doesNotExist();
+    }
+    @Test void explicitRenewalRequiresClientIdAndRefreshToken() {
+        for(String field:java.util.List.of("mercadolivre.client-id","mercadolivre.refresh-token")) {
+            var calls=new AtomicInteger();
+            var tokens=new MercadoLivreTokens(web(calls,HttpStatus.OK,success()),mapper,env().withProperty(field,""));
+            assertThatThrownBy(()->tokens.afterUnauthorized("old-access")).isInstanceOf(StoreAccessException.class);
+            assertThat(calls.get()).isZero();
+        }
+    }
+    @Test void storedStateMustHaveRefreshAsWellAsAccessToken() throws Exception {
+        Files.writeString(directory.resolve("tokens.json"),"{\"client_id\":\"test-client\",\"access_token\":\"access\",\"expires_at\":\"2099-01-01T00:00:00Z\"}");
+        assertThatThrownBy(()->new MercadoLivreTokens(WebClient.create(),mapper,env())).isInstanceOf(IllegalStateException.class);
+    }
+    @Test void unauthorizedWhileSaveIsPendingRetriesDiskWithoutSecondRotation() throws Exception {
+        Path blocker=directory.resolve("blocked"); Files.writeString(blocker,"file");
+        var config=env().withProperty("mercadolivre.token-file",blocker.resolve("tokens.json").toString());
+        var calls=new AtomicInteger(); var tokens=new MercadoLivreTokens(web(calls,HttpStatus.OK,success()),mapper,config);
+        assertThatThrownBy(tokens::accessToken).isInstanceOf(StoreAccessException.class);
+        Files.delete(blocker);
+        assertThat(tokens.afterUnauthorized("new-access")).isEqualTo("new-access"); assertThat(calls.get()).isEqualTo(1);
+    }
+    @Test void persistsUsingOwnerOnlyPermissionsOnPosixStores() throws Exception {
+        var store=org.mockito.Mockito.mock(java.nio.file.FileStore.class);
+        org.mockito.Mockito.when(store.supportsFileAttributeView("posix")).thenReturn(true);
+        var tokens=new MercadoLivreTokens(web(new AtomicInteger(),HttpStatus.OK,success()),mapper,env());
+        var temporary=directory.resolve("controlled.tmp"); Files.createFile(temporary);
+        try(var files=org.mockito.Mockito.mockStatic(Files.class,org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            files.when(()->Files.getFileStore(directory)).thenReturn(store);
+            files.when(()->Files.setPosixFilePermissions(directory,java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"))).thenReturn(directory);
+            files.when(()->Files.createTempFile(org.mockito.ArgumentMatchers.eq(directory),org.mockito.ArgumentMatchers.eq("tokens-"),org.mockito.ArgumentMatchers.eq(".tmp"),
+                org.mockito.ArgumentMatchers.<java.nio.file.attribute.FileAttribute<?>[]>any())).thenAnswer(invocation->{
+                    java.nio.file.attribute.FileAttribute<?> attr=invocation.getArgument(3);
+                    assertThat(attr.value()).isEqualTo(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+                    return temporary;
+                });
+            files.clearInvocations();
+            assertThat(tokens.accessToken()).isEqualTo("new-access");
+            files.verify(()->Files.setPosixFilePermissions(directory,java.nio.file.attribute.PosixFilePermissions.fromString("rwx------")));
+        }
+        assertThat(directory.resolve("tokens.json")).exists();
+    }
+    @Test void persistsOnStoresWithoutPosixPermissions() throws Exception {
+        var store=org.mockito.Mockito.mock(java.nio.file.FileStore.class);
+        org.mockito.Mockito.when(store.supportsFileAttributeView("posix")).thenReturn(false);
+        var tokens=new MercadoLivreTokens(web(new AtomicInteger(),HttpStatus.OK,success()),mapper,env());
+        try(var files=org.mockito.Mockito.mockStatic(Files.class,org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            files.when(()->Files.getFileStore(directory)).thenReturn(store);
+            files.clearInvocations();
+            assertThat(tokens.accessToken()).isEqualTo("new-access");
+            files.verify(()->Files.setPosixFilePermissions(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any()),org.mockito.Mockito.never());
+        }
+        assertThat(mapper.readTree(Files.readString(directory.resolve("tokens.json"))).path("refresh_token").asText()).isEqualTo("new-refresh");
+    }
+    @Test void cleanupFailureDoesNotDiscardRotatedCredentials() throws Exception {
+        var tokens=new MercadoLivreTokens(web(new AtomicInteger(),HttpStatus.OK,success()),mapper,env());
+        try(var files=org.mockito.Mockito.mockStatic(Files.class,org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            files.when(()->Files.deleteIfExists(org.mockito.ArgumentMatchers.any(Path.class))).thenThrow(new java.io.IOException("cleanup"));
+            assertThat(tokens.accessToken()).isEqualTo("new-access");
+        }
+        assertThat(new MercadoLivreTokens(WebClient.create(),mapper,env()).accessToken()).isEqualTo("new-access");
+    }
     @TempDir Path directory;
     final ObjectMapper mapper=new ObjectMapper();
     MockEnvironment env() {

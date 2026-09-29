@@ -117,7 +117,7 @@ A página `/health.html` consulta `/actuator/health` e `/api/status`, mostrando 
 
 O workflow [CI](.github/workflows/ci.yml) roda em cada push, pull request e também manualmente pela aba Actions. Valida segredos nos arquivos publicáveis, sintaxe JavaScript, testes do auxiliar OAuth, Checkstyle, testes Java e integração com PostgreSQL temporário, usando Java 21 e Node.js 24 no Ubuntu.
 
-Os relatórios de testes e JaCoCo ficam disponíveis como artefatos por sete dias. Se todas as verificações passarem, o workflow disponibiliza o JAR validado. Não usa credenciais das lojas nem envia mensagens ao Discord. O teste HTTP externo continua opt-in e não faz parte do CI. O deploy automático em servidor não está configurado; o destino e as credenciais de implantação ainda precisam ser definidos.
+O CI exige 100% de linhas, decisões e instruções pelo `jacoco:check` executado em `verify`. A cobertura aparece no resumo da execução, inclusive quando o relatório existe e alguma verificação falha. Os relatórios de testes e JaCoCo ficam disponíveis como artefatos por sete dias. Se todas as verificações passarem, o workflow disponibiliza o JAR validado. Não usa credenciais das lojas nem envia mensagens ao Discord. O teste HTTP externo continua opt-in e não faz parte do CI. O deploy automático em servidor não está configurado; o destino e as credenciais de implantação ainda precisam ser definidos.
 
 JDK 21 recomendado. Para desenvolvimento sem Docker, configure PostgreSQL e execute `.\mvnw.cmd spring-boot:run`. Linux/macOS: `sh mvnw`. Os scripts opcionais `setup-local.ps1`, `start-local.ps1` e `stop-local.ps1` preparam um ambiente Windows em `.runtime`. Essa pasta pode conter banco e backups: não a apague indiscriminadamente.
 
@@ -130,9 +130,9 @@ node --test scripts/mercadolivre-oauth.test.mjs
 node scripts/check-secrets.mjs
 ```
 
-`verify` executa testes, Checkstyle e gera cobertura JaCoCo em `target/site/jacoco/index.html`. O lint básico verifica nomes de arquivos/tipos, equals/hashCode, instruções vazias e imports internos proibidos. Não há limite mínimo de cobertura configurado. O teste HTTP real é opt-in (`-Dpostgres=true -Dlive=true`), não envia ao Discord e depende da disponibilidade da loja.
+`verify` executa testes, Checkstyle e gera cobertura JaCoCo em `target/site/jacoco/index.html`. O lint básico verifica nomes de arquivos/tipos, equals/hashCode, instruções vazias e imports internos proibidos. O JaCoCo exige 100% de linhas, decisões (branches) e instruções do código de produção, sem exclusões; o build falha se qualquer uma dessas métricas ficar abaixo do limite. O teste HTTP real é opt-in (`-Dpostgres=true -Dlive=true`), não envia ao Discord e depende da disponibilidade da loja.
 
-Na validação de 28/09/2026, a suíte com PostgreSQL cobriu 100% das 686 linhas e 75,0% das decisões, sem excluir classes de produção. Foram 77 testes aprovados e um teste HTTP externo opt-in não executado. Cobertura de linhas não garante ausência de erros nem valida disponibilidade das lojas externas.
+Na validação de 29/09/2026, a suíte com PostgreSQL cobriu 100% das 686 linhas, dos 673 caminhos condicionais e das 5.312 instruções, sem excluir classes de produção. A cobertura usa respostas simuladas das lojas e do Discord, incluindo falhas e limites de entrada. O teste HTTP externo continua opt-in. Cobertura total não garante ausência de erros nem valida disponibilidade das lojas externas.
 
 A migração V2 remove dados das lojas descontinuadas e os registros relacionados. Faça backup do banco antes de atualizar uma instalação existente.
 

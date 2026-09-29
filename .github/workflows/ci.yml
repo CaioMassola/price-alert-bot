@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Lint, tests and package
+    name: Lint, tests, 100% coverage and package
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -48,8 +48,31 @@ jobs:
       - name: Test OAuth helper
         run: node --test scripts/mercadolivre-oauth.test.mjs
 
-      - name: Checkstyle, Java tests, PostgreSQL integration and coverage
+      # Maven verify enforces 100% LINE, BRANCH and INSTRUCTION coverage via jacoco:check.
+      - name: Checkstyle, Java tests, PostgreSQL integration and 100% coverage gate
         run: sh mvnw --batch-mode --no-transfer-progress -Dpostgres=true clean verify
+
+      - name: Publish coverage summary
+        if: ${{ always() && hashFiles('target/site/jacoco/jacoco.xml') != '' }}
+        shell: pwsh
+        run: |
+          [xml]$report = Get-Content target/site/jacoco/jacoco.xml -Raw
+          $summary = @(
+            '## Java coverage (JaCoCo)', '',
+            'Required: **100%** for each metric, enforced by Maven `verify`.', '',
+            '| Metric | Covered | Total | Coverage | Required |',
+            '| --- | ---: | ---: | ---: | ---: |'
+          )
+          foreach ($metric in @('LINE', 'BRANCH', 'INSTRUCTION')) {
+            $counter = $report.report.counter | Where-Object type -eq $metric
+            if ($null -eq $counter) { throw "Missing JaCoCo counter: $metric" }
+            $covered = [long]$counter.covered
+            $total = $covered + [long]$counter.missed
+            $percentage = if ($total -gt 0) { 100 * $covered / $total } else { 0 }
+            $formatted = $percentage.ToString('F2', [cultureinfo]::InvariantCulture)
+            $summary += "| $metric | $covered | $total | $formatted% | 100% |"
+          }
+          $summary | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Upload test and coverage reports
         if: ${{ always() }}

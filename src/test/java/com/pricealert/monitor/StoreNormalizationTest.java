@@ -11,6 +11,31 @@ import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class StoreNormalizationTest {
+    @Test void amazonHandlesEnglishErrorMissingPriceAndOptionalPresentationFields() {
+        var monitor=new AmazonMonitor(http,parser,TestSupport.config());
+        when(http.get(eq(Store.AMAZON),anyString(),isNull())).thenReturn("<title>Sorry! Something went wrong</title>");
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("phone"))).isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(503));
+        when(http.get(eq(Store.AMAZON),anyString(),isNull())).thenReturn("<span id='productTitle'>Phone</span>");
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.product("https://www.amazon.com.br/dp/B012345678"))).isInstanceOf(StoreAccessException.class);
+        when(http.get(eq(Store.AMAZON),anyString(),isNull())).thenReturn("<span id='productTitle'>Phone</span><div id='corePrice_feature_div'><span class='a-price'><span class='a-offscreen'>100.00</span></span></div>");
+        var result=monitor.searchProducts(MonitorRequest.product("https://www.amazon.com.br/dp/B012345678")).getFirst();
+        assertThat(result.available()).isFalse(); assertThat(result.imageUrl()).isNull(); assertThat(result.originalPrice()).isNull();
+    }
+    @Test void kabumRejectsExclusiveAndInvalidPricesAndFallsBackToStructuredMetadata() {
+        var monitor=new KabumMonitor(http,parser,TestSupport.config(),mapper);
+        String base="{\"code\":123,\"name\":\"Keyboard\",\"price\":100,\"available\":true}";
+        for(String data:java.util.List.of("{}","{\"code\":1}","{\"code\":1,\"name\":\"x\"}","{\"code\":1,\"name\":\"x\",\"price\":1}",
+            base.replace("100","null"),base.replace("100","0"),base.replace("100","100,\"offer\":{\"isLoggedUserExclusive\":true}"),
+            base.replace("100","100,\"offer\":{\"isPrimeExclusive\":true}"))) {
+            when(http.get(eq(Store.KABUM),anyString(),isNull())).thenReturn("<script id='__NEXT_DATA__'>{\"props\":{\"pageProps\":"+data+"}}</script>");
+            assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("keyboard"))).isInstanceOf(StoreAccessException.class);
+        }
+        String item=base.replace("100","100,\"priceWithDiscount\":0");
+        when(http.get(eq(Store.KABUM),anyString(),isNull())).thenReturn("<script id='__NEXT_DATA__'>{\"props\":{\"pageProps\":["+item+","+item+",null]}}</script>");
+        var result=monitor.searchProducts(MonitorRequest.search("keyboard"));
+        assertThat(result).hasSize(1); assertThat(result.getFirst().currentPrice()).isEqualByComparingTo("100");
+        assertThat(result.getFirst().coupon()).isNull();
+    }
     @Test void htmlFallbackRecognizesStoreLinksAndInvalidKabumJson() {
         when(http.get(eq(Store.AMAZON),anyString(),isNull())).thenReturn("<a href='/dp/B012345678'>product</a>","<html></html>");
         assertThatThrownBy(()->new AmazonMonitor(http,parser,TestSupport.config()).searchProducts(MonitorRequest.search("phone")))

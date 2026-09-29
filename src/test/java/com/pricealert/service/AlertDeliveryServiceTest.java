@@ -15,6 +15,12 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AlertDeliveryServiceTest {
+    @Test void missingOrRepricedProductsInvalidatePendingAlerts() throws Exception {
+        Alert missing=pending(); when(products.findById(1L)).thenReturn(Optional.empty()); service.deliver();
+        assertThat(missing.status).isEqualTo("STALE");
+        Alert changed=pending(); product.currentPrice=java.math.BigDecimal.ONE; service.deliver();
+        assertThat(changed.status).isEqualTo("STALE"); verify(channel,never()).send(any(),anyBoolean());
+    }
     final AlertRepository alerts=mock(AlertRepository.class);
     final ProductRepository products=mock(ProductRepository.class);
     final NotificationChannel channel=mock(NotificationChannel.class);

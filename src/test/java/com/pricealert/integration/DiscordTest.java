@@ -11,6 +11,35 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.*;
 class DiscordTest {
+    @Test void webhookValidationRejectsEveryUntrustedUriComponent() {
+        for(String url:List.of("https://user@discord.com/api/webhooks/123/token","https://discord.com:443/api/webhooks/123/token",
+            webhook+"?wait=true",webhook+"#fragment","https://discord.com/api/other"))
+            assertThatThrownBy(()->new DiscordWebhookClient(WebClient.create(),url)).isInstanceOf(IllegalArgumentException.class);
+        var empty=new DiscordWebhookClient(WebClient.create(),"");
+        assertThat(empty.configured()).isFalse();
+        assertThatThrownBy(()->empty.send(java.util.Map.of())).isInstanceOfSatisfying(NotificationException.class,e->assertThat(e.state).isEqualTo("NOT_CONFIGURED"));
+    }
+    @Test void nonSuccessfulResponsesAreNotConfirmedDeliveries() {
+        for(int code:new int[]{199,302,400}) {
+            var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(org.springframework.http.HttpStatusCode.valueOf(code)).body("{\"id\":\"1\"}").build())).build();
+            assertThatThrownBy(()->new DiscordWebhookClient(web,webhook).send(java.util.Map.of()))
+                .isInstanceOfSatisfying(NotificationException.class,e->assertThat(e.state).isEqualTo(code==400?"FAILED":"UNKNOWN"));
+        }
+        var web=org.mockito.Mockito.mock(WebClient.class,org.mockito.Mockito.RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(web.post().uri(webhook+"?wait=true").bodyValue(java.util.Map.of()).exchangeToMono(org.mockito.ArgumentMatchers.any())).thenReturn(Mono.empty());
+        assertThatThrownBy(()->new DiscordWebhookClient(web,webhook).send(java.util.Map.of()))
+            .isInstanceOfSatisfying(NotificationException.class,e->assertThat(e.state).isEqualTo("UNKNOWN"));
+    }
+    @Test void rendersHistoricalPricesImageAndFixedCouponForOtherStores() {
+        var channel=new DiscordNotificationChannel(org.mockito.Mockito.mock(DiscordWebhookClient.class));
+        var coupon=new com.pricealert.domain.coupon.Coupon("FIXED",null,java.math.BigDecimal.TEN,null,null,"source");
+        var product=new com.pricealert.domain.product.ProductSnapshot("MLB1","Product","https://produto.mercadolivre.com.br/MLB-1","https://image.test/a",
+            new java.math.BigDecimal("100"),null,com.pricealert.domain.store.Store.MERCADO_LIVRE,true,coupon,java.time.Instant.now());
+        var previous=new com.pricealert.domain.product.Product(); previous.currentPrice=new java.math.BigDecimal("200");
+        var analysis=new DiscountService(TestSupport.config()).analyze(previous,product,TestSupport.history("200","200","200"),null,false);
+        var payload=channel.payload(new PriceAlert(1L,product,analysis,new java.math.BigDecimal("90"))).toString();
+        assertThat(payload).contains("thumbnail","FIXED","90,00","50.00%").doesNotContain("Pagamento");
+    }
     @Test void rejectsUnofficialWebhooksAndUnconfirmedResponses() {
         for(String url:List.of("http://discord.com/api/webhooks/123/token","https://evil.test/webhook","invalid url"))
             assertThatThrownBy(()->new DiscordWebhookClient(WebClient.create(),url)).isInstanceOf(IllegalArgumentException.class);

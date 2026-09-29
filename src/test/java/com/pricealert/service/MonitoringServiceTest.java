@@ -8,6 +8,16 @@ import java.util.List;
 import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.*;
 class MonitoringServiceTest {
+    @Test void disabledDiscoveryAndReentrantRoundDoNotAddJobs() {
+        var config=mock(com.pricealert.config.MonitorConfig.class);
+        var monitor=mock(StoreMonitor.class); when(monitor.getStore()).thenReturn(Store.KABUM);
+        var service=new MonitoringService(List.of(monitor),mock(TrackedProductRepository.class),mock(ProductService.class),config);
+        service.discoverPromotions(); service.runNext(); verify(monitor,never()).searchProducts(any());
+        when(config.promotionsEnabled()).thenReturn(true); when(config.queries()).thenReturn(List.of("one"));
+        when(monitor.searchProducts(any())).thenAnswer(invocation->{service.discoverPromotions(); return List.of();});
+        service.discoverPromotions(); service.runNext(); service.runNext();
+        verify(monitor,times(1)).searchProducts(any());
+    }
     @Test void schedulerPrioritizesTrackedProductsAndReportsFailures() {
         for(Store store:Store.values()) for(int code:new int[]{0,401,403,404,422,429,500,410}) {
             var monitor=mock(StoreMonitor.class); when(monitor.getStore()).thenReturn(store);
