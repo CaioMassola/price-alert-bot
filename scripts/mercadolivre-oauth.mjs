@@ -22,7 +22,11 @@ export function saveEnv(values, filename = envPath) {
     const pattern = new RegExp(`^${key}=.*$`, 'm');
     content = pattern.test(content) ? content.replace(pattern, () => line) : content.trimEnd() + '\n' + line + '\n';
   }
-  fs.writeFileSync(filename, content, { mode: 0o600 });
+  const temporary = filename + '.oauth-' + randomBytes(8).toString('hex');
+  try {
+    fs.writeFileSync(temporary, content, { mode: 0o600 });
+    fs.renameSync(temporary, filename);
+  } finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
 }
 export function validState(session, state) {
   if (!session || !state || session.expires < Date.now()) return false;

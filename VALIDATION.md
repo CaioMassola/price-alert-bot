@@ -1,5 +1,12 @@
 # Registro de validação
 
+## Renovação automática OAuth — 28/09/2026
+
+- Auxiliar Windows verifica validade a cada cinco minutos, renova com dez minutos de antecedência e persiste access/refresh token antes de recarregar o serviço Docker.
+- Renovação real concluída; tarefa `Milize-MercadoLivre-Refresh` instalada e execução pelo Agendador terminou com código 0, sem renovar novamente um token vigente.
+- Sete testes Node aprovados, incluindo rotação, preservação de configuração, rejeição de respostas inválidas e recuperação de falha ao recarregar Docker. Sintaxe Node validada e scanner de segredos sem achados.
+- Código Java não alterado nesta etapa; a medição anterior de cobertura continua aplicável. A automação exige sessão Windows ativa e Docker disponível; revogação de autorização exige novo login.
+
 ## Cobertura e limpeza de lojas — 28/09/2026
 
 - `mvnw -Dpostgres=true clean verify`: 70 testes, 69 aprovados, um teste HTTP externo opt-in não executado, nenhuma falha e zero violações Checkstyle.

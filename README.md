@@ -128,6 +128,14 @@ A migração V2 remove dados das lojas descontinuadas e os registros relacionado
 
 O auxiliar OAuth escuta em `127.0.0.1:8765`, valida estado temporário de uso único e salva tokens localmente. `node scripts/mercadolivre-oauth.mjs authorize --manual` permite testar a troca manual. Exige retorno HTTPS registrado e em funcionamento. O Compose não abre túneis públicos automaticamente.
 
+### Renovação automática no Windows
+
+Com Node.js e Docker Desktop instalados, execute `powershell -File scripts/install-mercadolivre-refresh.ps1` uma vez. A tarefa `Milize-MercadoLivre-Refresh` verifica o token a cada cinco minutos durante sua sessão Windows e renova quando faltam dez minutos para vencer. Precisa de `MERCADO_LIVRE_CLIENT_ID`, `MERCADO_LIVRE_CLIENT_SECRET`, `MERCADO_LIVRE_REFRESH_TOKEN` e `MERCADO_LIVRE_TOKEN_EXPIRES_AT` no `.env`.
+
+O auxiliar salva os dois tokens novos no `.env` antes de recriar apenas o serviço do bot. Se o Docker estiver indisponível, tenta recarregar novamente na próxima execução, sem reutilizar o refresh token antigo. Log sem credenciais: `.runtime/ml-refresh.log`. Uma autorização revogada exige novo login. A tarefa depende do PC ligado e da sessão Windows; ela não vem embutida na imagem Docker. Evite renovar manualmente em paralelo. Se um encerramento forçado deixar `.runtime/ml-refresh.lock`, confirme que nenhuma renovação está em execução antes de remover esse arquivo.
+
+Teste do auxiliar: `node --test scripts/refresh-mercadolivre.test.mjs`. Execução manual: `node scripts/refresh-mercadolivre.mjs`. Para desativar a automação: `Disable-ScheduledTask -TaskName Milize-MercadoLivre-Refresh`.
+
 ## Segurança e limitações
 
 `.env`, variantes locais, `.runtime`, logs, backups, chaves e `target` não são versionados. `.env.example` não contém credenciais válidas. O scanner procura padrões de segredos e valores do `.env` nos arquivos publicáveis; não garante detectar todo tipo de segredo. Credenciais previamente compartilhadas devem ser revogadas/rotacionadas no provedor; removê-las de arquivos não as invalida.
