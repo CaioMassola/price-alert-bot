@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Saúde da API — Milizé</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: #141820; color: #f5f3ff; font-family: system-ui, sans-serif; }
+    main { max-width: 800px; margin: 24px auto; }
+    nav { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    a, button { display: inline-block; padding: 12px 18px; border: 0; border-radius: 8px; background: #c4b5fd; color: #201738; text-decoration: none; font: inherit; font-weight: 700; cursor: pointer; }
+    a:hover, button:hover { background: #ddd6fe; }
+    :focus-visible { outline: 3px solid white; outline-offset: 4px; }
+    button:disabled { opacity: .6; cursor: wait; }
+    h1 { margin: 32px 0 12px; font-size: clamp(28px, 6vw, 40px); }
+    h2 { font-size: 18px; margin: 0 0 12px; }
+    p { color: #c0c4cf; line-height: 1.6; }
+    section, article { padding: 24px; background: #1e222d; border: 1px solid #363444; border-radius: 14px; margin: 16px 0; }
+    .state { font-size: 20px; font-weight: 700; }
+    .good { color: #86efac; } .bad { color: #fda4af; } .neutral { color: #ddd6fe; }
+    #stores { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+    article { margin: 0; overflow-wrap: anywhere; }
+    small { color: #a1a7b5; }
+  </style>
+  <script src="/saude.js" defer></script>
+</head>
+<body>
+  <main>
+    <nav><a href="/">← Voltar ao início</a><button id="refresh" type="button">Atualizar</button></nav>
+    <h1>Saúde da API</h1>
+    <p>Disponibilidade do serviço e resultado das últimas coletas. Atualização automática a cada 30 segundos.</p>
+    <section aria-live="polite" aria-atomic="true">
+      <h2>Serviço</h2><div id="health" class="state neutral">Verificando…</div>
+      <p id="discord">Verificando configuração do Discord…</p>
+      <small id="checked">Aguardando primeira consulta.</small>
+    </section>
+    <h2>Coleta por loja</h2>
+    <p id="store-error" role="status"></p>
+    <div id="stores" aria-live="polite"></div>
+    <noscript><p>Ative o JavaScript para consultar o estado atual da API.</p></noscript>
+  </main>
+</body>
+</html>

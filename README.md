@@ -109,7 +109,9 @@ A API não tem autenticação e deve permanecer privada no loopback. Não publiq
 
 ## Desenvolvimento e testes
 
-A página inicial fica em `/`, com o botão **Documentação** para abrir o Swagger UI em `/swagger-ui/index.html`. A especificação OpenAPI está em `/v3/api-docs`; ela descreve os endpoints `/api/**`, seus parâmetros e modelos. O Swagger permite executar chamadas na API, incluindo cadastro e remoção de acompanhamentos.
+A página inicial fica em `/`, com os botões **Documentação** e **Saúde da API**. A documentação abre em `/documentacao.html`, com Swagger UI e botão de retorno ao início. O acesso direto ao Swagger continua em `/swagger-ui/index.html`. A especificação OpenAPI está em `/v3/api-docs`; ela descreve os endpoints `/api/**`, seus parâmetros e modelos. O Swagger permite executar chamadas na API, incluindo cadastro e remoção de acompanhamentos.
+
+A página `/saude.html` consulta `/actuator/health` e `/api/status`, mostrando a disponibilidade da API, configuração do Discord e resultado da última coleta por loja. Atualiza automaticamente a cada 30 segundos, permite atualização manual e retorno ao início. Configuração do Discord não equivale a confirmação de entrega, e uma loja indisponível não significa necessariamente que a API está fora do ar.
 
 ### GitHub Actions
 

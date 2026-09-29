@@ -41,7 +41,7 @@ jobs:
 
       - name: Check JavaScript syntax
         run: |
-          for script in scripts/*.mjs; do
+          for script in scripts/*.mjs src/main/resources/static/*.js; do
             node --check "$script"
           done
 

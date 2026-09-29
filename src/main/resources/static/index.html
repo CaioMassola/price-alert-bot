@@ -15,6 +15,9 @@
     a { display: inline-flex; align-items: center; gap: 24px; padding: 14px 22px; border-radius: 10px; background: #c4b5fd; color: #201738; text-decoration: none; font-weight: 700; }
     a:hover { background: #ddd6fe; }
     a:focus-visible { outline: 3px solid #fff; outline-offset: 5px; }
+    nav { display: flex; flex-wrap: wrap; gap: 12px; }
+    .secondary { background: transparent; color: #ddd6fe; border: 1px solid #82739c; }
+    .secondary:hover { background: #363044; }
     footer { margin-top: 32px; font-size: 13px; color: #a1a7b5; }
   </style>
 </head>
@@ -23,7 +26,10 @@
     <div class="label">Milizé · Bot de ofertas</div>
     <h1>De olho nos preços.<br>Pronta para avisar.</h1>
     <p>Monitoramento de produtos, histórico de preços e alertas de promoções no Discord. Explore os recursos da API na documentação.</p>
-    <a href="/swagger-ui/index.html">Documentação <span aria-hidden="true">↗</span></a>
+    <nav aria-label="Recursos">
+      <a href="/documentacao.html">Documentação <span aria-hidden="true">↗</span></a>
+      <a class="secondary" href="/saude.html">Saúde da API <span aria-hidden="true">↗</span></a>
+    </nav>
     <footer>Seu próximo achado começa com uma boa oferta.</footer>
   </main>
 </body>
