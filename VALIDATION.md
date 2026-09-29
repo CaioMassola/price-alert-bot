@@ -1,5 +1,11 @@
 # Registro de validação
 
+## Página inicial e Swagger — 28/09/2026
+
+- Página responsiva em `/`, com botão `Documentacao` para `/swagger-ui/index.html`.
+- Springdoc 2.8.17 integra OpenAPI em `/v3/api-docs`, limitado aos endpoints `/api/**`, com descrições e exemplos de acompanhamento.
+- Teste HTTP com PostgreSQL valida página inicial, Swagger UI e caminhos da especificação. Maven: 79 testes, 78 aprovados e um externo opt-in não executado; zero violações Checkstyle e 100% das 686 linhas cobertas.
+
 ## GitHub Actions — 28/09/2026
 
 - Workflow CI para push, pull request e execução manual, com permissões somente de leitura e actions oficiais fixadas por SHA.

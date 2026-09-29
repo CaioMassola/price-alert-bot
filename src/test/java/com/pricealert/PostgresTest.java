@@ -45,6 +45,19 @@ class PostgresTest {
         assertThat(rest.getForEntity("/actuator/health",String.class).getBody()).contains("UP");
         assertThat(rest.getForEntity("/api/products",String.class).getBody()).contains("Produto teste");
     }
+    @Test void homepageAndSwaggerDocumentApplicationEndpoints() throws Exception {
+        var home=rest.getForEntity("/",String.class);
+        assertThat(home.getStatusCode().value()).isEqualTo(200);
+        assertThat(home.getBody()).contains("Documentacao","/swagger-ui/index.html");
+        assertThat(rest.getForEntity("/swagger-ui/index.html",String.class).getBody()).contains("Swagger UI");
+        var response=rest.getForEntity("/v3/api-docs",String.class);
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        var spec=new com.fasterxml.jackson.databind.ObjectMapper().readTree(response.getBody());
+        assertThat(spec.path("info").path("title").asText()).contains("Milizé");
+        assertThat(spec.path("paths").has("/api/products")).isTrue();
+        assertThat(spec.path("paths").path("/api/tracked-products").has("post")).isTrue();
+        assertThat(spec.path("paths").has("/actuator/health")).isFalse();
+    }
     @Test @EnabledIfSystemProperty(named="live",matches="true")
     void realKabumHttpToPostgres() {
         var snapshots=kabum.searchProducts(MonitorRequest.search("teclado"));

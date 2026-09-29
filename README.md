@@ -109,6 +109,8 @@ A API não tem autenticação e deve permanecer privada no loopback. Não publiq
 
 ## Desenvolvimento e testes
 
+A página inicial fica em `/`, com o botão **Documentacao** para abrir o Swagger UI em `/swagger-ui/index.html`. A especificação OpenAPI está em `/v3/api-docs`; ela descreve os endpoints `/api/**`, seus parâmetros e modelos. O Swagger permite executar chamadas na API, incluindo cadastro e remoção de acompanhamentos.
+
 ### GitHub Actions
 
 O workflow [CI](.github/workflows/ci.yml) roda em cada push, pull request e também manualmente pela aba Actions. Valida segredos nos arquivos publicáveis, sintaxe JavaScript, testes do auxiliar OAuth, Checkstyle, testes Java e integração com PostgreSQL temporário, usando Java 21 e Node.js 24 no Ubuntu.

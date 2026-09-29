@@ -1,3 +1,7 @@
+springdoc:
+  paths-to-match: /api/**
+  swagger-ui:
+    disable-swagger-default-url: true
 spring:
   application:
     name: price-alert-bot
