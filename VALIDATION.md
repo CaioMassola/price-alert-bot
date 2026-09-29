@@ -1,5 +1,15 @@
 # Registro de validação
 
+## Cobertura e limpeza de lojas — 28/09/2026
+
+- `mvnw -Dpostgres=true clean verify`: 70 testes, 69 aprovados, um teste HTTP externo opt-in não executado, nenhuma falha e zero violações Checkstyle.
+- JaCoCo: 610/610 linhas (100%) e 458/615 decisões (74,5%), sem exclusão de classes. Execução de linhas não equivale a cobrir todas as combinações possíveis.
+- Novos testes cobrem entrega e falhas do Discord, limitação de requisições, interrupção de espera, parsers, cupons, API e agendamento. A espera HTTP permite substituição nos testes, preservando o atraso real em produção.
+- Removida a integração descontinuada do código, testes e documentação. Migração V2 remove produtos de lojas retiradas e seus históricos, cupons, alertas e acompanhamentos; testada com preservação das lojas mantidas.
+- Backup privado do banco realizado antes da migração. O arquivo permanece em `.runtime`, excluído do Git.
+- Nesta execução, mínimos localmente configurados em 10% para referência da loja e histórico. Três novas ofertas da KaBuM tiveram entrega confirmada pelo Discord. Mercado Livre retornou 401 e Amazon 422; essas falhas não foram apresentadas como coleta bem-sucedida.
+- Três testes do auxiliar OAuth aprovados. Scanner de segredos sem achados nos arquivos publicáveis.
+
 ## Revisão para publicação — 28/09/2026
 
 - README revisado: quatro termos por rodada, mínimo de 25%, saudação Discord, acesso por catálogo Mercado Livre e limitações reais de cada loja.
@@ -40,7 +50,6 @@
 - Limite solicitado pelo usuário mantido em 10%. Registro de alertas enviados restaurado para impedir reenvio dos mesmos produtos/preços.
 - Primeira coleta no Docker confirmou 5 produtos da KaBuM e encontrou um produto novo. O alerta 6 foi enviado e confirmado pelo Discord às 10:25 de 23/09/2026, sem repetir os cinco alertas antigos.
 - Build Docker: 28 testes aprovados e 2 testes PostgreSQL opt-in não executados, zero falhas/erros.
-- Mercado Livre e Pichau retornaram 403; Amazon retornou uma página sem produtos reconhecidos (422 do coletor). Essas integrações continuam indisponíveis nesta execução.
 
 As notas abaixo registram as etapas anteriores e as limitações das lojas.
 
@@ -76,7 +85,6 @@ O primeiro envio falhou por resolução DNS do Discord no cliente Netty. O clien
 ## Restrições observadas
 
 - Mercado Livre: API sem token e busca pública retornaram 403. Não houve tentativa de superar o bloqueio.
-- Pichau: consulta pública de busca retornou 403.
 - Amazon: ferramentas HTTP tiveram respostas inconsistentes, incluindo 503; não foi possível confirmar coleta de produto.
 - KaBuM: a busca genérica por ofertas redirecionou para uma página sem produtos; a busca por teclado retornou dados reais utilizáveis.
 - Webhook Discord configurado pelo usuário. Uma mensagem de teste real foi enviada por `scripts/test-discord.ps1`, com `wait=true`, e o Discord confirmou o recebimento. O fluxo completo de uma oferta real até o canal ainda não foi confirmado.

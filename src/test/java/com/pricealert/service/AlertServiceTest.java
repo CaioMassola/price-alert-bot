@@ -11,6 +11,15 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class AlertServiceTest {
+    @Test void unavailableHashAlgorithmFailsWithoutPersistingAnAlert() {
+        try(var digest=mockStatic(java.security.MessageDigest.class)) {
+            digest.when(()->java.security.MessageDigest.getInstance("SHA-256"))
+                .thenThrow(new java.security.NoSuchAlgorithmException("unavailable"));
+            Product product=new Product(); product.id=1L;
+            assertThatThrownBy(()->service.enqueue(product,deal("100"))).isInstanceOf(IllegalStateException.class);
+            verify(repository,never()).save(any());
+        }
+    }
     private final AlertRepository repository=mock(AlertRepository.class);
     private final AlertService service=new AlertService(repository,TestSupport.config(),new ObjectMapper().findAndRegisterModules());
     private PriceAlert deal(String price) {

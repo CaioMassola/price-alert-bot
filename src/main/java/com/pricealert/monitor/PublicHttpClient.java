@@ -14,7 +14,13 @@ public class PublicHttpClient {
     private final Map<Store,Instant> blockedUntil=new EnumMap<>(Store.class);
     private final Map<Store,Integer> blockedStatus=new EnumMap<>(Store.class);
     private Instant nextRequest=Instant.EPOCH;
-    public PublicHttpClient(WebClient client, MonitorConfig config) { this.client=client; this.config=config; }
+    private final Sleeper sleeper;
+    @org.springframework.beans.factory.annotation.Autowired
+    public PublicHttpClient(WebClient client, MonitorConfig config) { this(client,config,Thread::sleep); }
+    PublicHttpClient(WebClient client, MonitorConfig config, Sleeper sleeper) {
+        this.client=client; this.config=config; this.sleeper=sleeper;
+    }
+    @FunctionalInterface interface Sleeper { void sleep(long milliseconds) throws InterruptedException; }
     public synchronized String get(Store store, String url, String token) {
         URI uri=store.validateUrl(url);
         if(blockedUntil.getOrDefault(store,Instant.EPOCH).isAfter(Instant.now()))
@@ -69,7 +75,7 @@ public class PublicHttpClient {
     }
     private void pause() {
         long delay=Duration.between(Instant.now(),nextRequest).toMillis();
-        if(delay>0) try { Thread.sleep(delay); } catch(InterruptedException e) {
+        if(delay>0) try { sleeper.sleep(delay); } catch(InterruptedException e) {
             Thread.currentThread().interrupt(); throw new StoreAccessException(0,"Coleta interrompida");
         }
         nextRequest=Instant.now().plus(config.requestGap());

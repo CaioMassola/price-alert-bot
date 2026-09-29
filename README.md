@@ -9,7 +9,6 @@ Bot pessoal em Java 21 e Spring Boot para descobrir descontos, acompanhar preço
 | KaBuM | Coleta e entrega de ofertas reais no Discord confirmadas |
 | Mercado Livre | Coleta de ofertas de catálogo e histórico confirmados; exige token válido |
 | Amazon | Pendente — integração funcional não concluída; não coleta nem envia ofertas validadas |
-| Pichau | Coletor implementado, mas acesso público retornou 403 no ambiente testado |
 
 **Amazon ainda não está integrada funcionalmente.** Existe uma tentativa de leitura de páginas públicas no código, mas ela não foi validada como operacional. O acesso ao Amazon Associados/Creators API não foi habilitado, e o cliente dessa API não foi implementado. Portanto, Amazon não deve ser considerada uma loja suportada nesta versão; adicionar credenciais ao `.env` não basta para ativá-la.
 
@@ -122,6 +121,10 @@ node scripts/check-secrets.mjs
 ```
 
 `verify` executa testes, Checkstyle e gera cobertura JaCoCo em `target/site/jacoco/index.html`. O lint básico verifica nomes de arquivos/tipos, equals/hashCode, instruções vazias e imports internos proibidos. Não há limite mínimo de cobertura configurado. O teste HTTP real é opt-in (`-Dpostgres=true -Dlive=true`), não envia ao Discord e depende da disponibilidade da loja.
+
+Na validação de 28/09/2026, a suíte com PostgreSQL cobriu 100% das 610 linhas e 74,5% das decisões, sem excluir classes de produção. Foram 69 testes aprovados e um teste HTTP externo opt-in não executado. Cobertura de linhas não garante ausência de erros nem valida disponibilidade das lojas externas.
+
+A migração V2 remove dados das lojas descontinuadas e os registros relacionados. Faça backup do banco antes de atualizar uma instalação existente.
 
 O auxiliar OAuth escuta em `127.0.0.1:8765`, valida estado temporário de uso único e salva tokens localmente. `node scripts/mercadolivre-oauth.mjs authorize --manual` permite testar a troca manual. Exige retorno HTTPS registrado e em funcionamento. O Compose não abre túneis públicos automaticamente.
 

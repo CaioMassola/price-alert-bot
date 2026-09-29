@@ -86,7 +86,6 @@ public class MonitoringService {
         return switch(store) {
             case MERCADO_LIVRE -> "Para a API oficial, configure MERCADO_LIVRE_ACCESS_TOKEN e valide as permissões de consulta. Cadastro e token não garantem acesso ao catálogo. Veja docs/ACESSO-LOJAS.md.";
             case AMAZON -> "O coletor atual usa páginas públicas. A alternativa oficial exige aprovação no Amazon Associados e uma integração com Creators API, ainda não implementada. Veja docs/ACESSO-LOJAS.md.";
-            case PICHAU -> "Aguarde a disponibilidade pública ou obtenha uma fonte autorizada junto à loja.";
             case KABUM -> "Verifique disponibilidade da loja e compatibilidade do parser com o JSON público.";
         };
     }

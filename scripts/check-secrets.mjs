@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const git = args => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
 const staged = process.argv.includes('--staged');
-const files = [...new Set(git(staged ? ['ls-files', '-z'] : ['ls-files', '-co', '--exclude-standard', '-z']).split('\0').filter(Boolean))];
+const files = [...new Set(git(staged ? ['ls-files', '-z'] : ['ls-files', '-co', '--exclude-standard', '-z']).split('\0').filter(Boolean))]
+  .filter(file => staged || fs.existsSync(file));
 const secrets = fs.existsSync('.env') ? fs.readFileSync('.env', 'utf8').split(/\r?\n/).flatMap(line => {
   const i = line.indexOf('=');
   if (i < 0 || !/(PASSWORD|SECRET|TOKEN|WEBHOOK)/.test(line.slice(0, i)) || /EXPIRES/.test(line.slice(0, i))) return [];

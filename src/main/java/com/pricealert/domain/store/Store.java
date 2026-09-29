@@ -4,7 +4,6 @@ import java.util.Set;
 public enum Store {
     MERCADO_LIVRE(Set.of("www.mercadolivre.com.br", "produto.mercadolivre.com.br", "lista.mercadolivre.com.br", "api.mercadolibre.com")),
     KABUM(Set.of("www.kabum.com.br")),
-    PICHAU(Set.of("www.pichau.com.br")),
     AMAZON(Set.of("www.amazon.com.br"));
     private final Set<String> hosts;
     Store(Set<String> hosts) { this.hosts = hosts; }

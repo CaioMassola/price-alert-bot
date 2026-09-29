@@ -8,6 +8,30 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class MercadoLivreCatalogTest {
+    @Test void rejectsMalformedApiAndPropagatesOfferRestrictions() {
+        response("/products/search?status=active&site_id=MLB&q=teclado&limit=5","{");
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("teclado")))
+            .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(422));
+        catalog();
+        when(http.get(Store.MERCADO_LIVRE,"https://api.mercadolibre.com/products/MLB123/items?limit=5","test-token"))
+            .thenThrow(new StoreAccessException(403,"denied"));
+        assertThatThrownBy(()->monitor.searchProducts(MonitorRequest.search("teclado")))
+            .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(403));
+    }
+    @Test void fetchesTrackedListingByItemIdentity() throws Exception {
+        try(var stream=getClass().getResourceAsStream("/fixtures/mercadolivre.json")) {
+            response("/items/MLB123",new String(stream.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));
+        }
+        assertThat(monitor.searchProducts(MonitorRequest.product("https://produto.mercadolivre.com.br/MLB-123-product"))).hasSize(1);
+    }
+    @Test void publicFallbackRecognizesProductLinksWithoutApiToken() {
+        var fallback=new MercadoLivreMonitor(http,new StructuredProductParser(mapper),TestSupport.config(),mapper,"");
+        when(http.get(Store.MERCADO_LIVRE,"https://lista.mercadolivre.com.br/teclado",null))
+            .thenReturn("<a href='https://produto.mercadolivre.com.br/MLB-123-keyboard'>product</a>");
+        when(http.get(Store.MERCADO_LIVRE,"https://produto.mercadolivre.com.br/MLB-123-keyboard",null)).thenReturn("<html></html>");
+        assertThatThrownBy(()->fallback.searchProducts(MonitorRequest.search("teclado"))).isInstanceOf(StoreAccessException.class);
+        verify(http).get(Store.MERCADO_LIVRE,"https://produto.mercadolivre.com.br/MLB-123-keyboard",null);
+    }
     private final PublicHttpClient http=mock(PublicHttpClient.class);
     private final ObjectMapper mapper=new ObjectMapper();
     private final MercadoLivreMonitor monitor=new MercadoLivreMonitor(http,new StructuredProductParser(mapper),TestSupport.config(),mapper,"test-token");

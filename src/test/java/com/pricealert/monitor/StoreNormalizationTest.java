@@ -3,7 +3,7 @@ import com.pricealert.TestSupport;
 import com.pricealert.domain.store.Store;
 import com.pricealert.monitor.amazon.AmazonMonitor;
 import com.pricealert.monitor.kabum.KabumMonitor;
-import com.pricealert.monitor.pichau.PichauMonitor;
+
 import com.pricealert.monitor.mercadolivre.MercadoLivreMonitor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -11,6 +11,22 @@ import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class StoreNormalizationTest {
+    @Test void htmlFallbackRecognizesStoreLinksAndInvalidKabumJson() {
+        when(http.get(eq(Store.AMAZON),anyString(),isNull())).thenReturn("<a href='/dp/B012345678'>product</a>","<html></html>");
+        assertThatThrownBy(()->new AmazonMonitor(http,parser,TestSupport.config()).searchProducts(MonitorRequest.search("phone")))
+            .isInstanceOf(StoreAccessException.class);
+        when(http.get(eq(Store.KABUM),anyString(),isNull())).thenReturn("<a href='/produto/123'>product</a>","<script id='__NEXT_DATA__'>{</script>");
+        assertThatThrownBy(()->new KabumMonitor(http,parser,TestSupport.config(),mapper).searchProducts(MonitorRequest.search("keyboard")))
+            .isInstanceOf(StoreAccessException.class);
+    }
+    @Test void couponLabelDoesNotInventDiscountTerms() {
+        when(http.get(eq(Store.KABUM),anyString(),isNull())).thenReturn("""
+            <script id='__NEXT_DATA__'>{"props":{"pageProps":{"code":123,"name":"Keyboard","price":100,
+            "available":true,"stamps":{"title":"CUPOM SALE10"}}}}</script>
+            """);
+        var item=new KabumMonitor(http,parser,TestSupport.config(),mapper).searchProducts(MonitorRequest.search("keyboard")).getFirst();
+        assertThat(item.coupon().code()).isEqualTo("SALE10"); assertThat(item.coupon().discountPercentage()).isNull();
+    }
     private final ObjectMapper mapper=new ObjectMapper().findAndRegisterModules();
     private final StructuredProductParser parser=new StructuredProductParser(mapper);
     private final PublicHttpClient http=mock(PublicHttpClient.class);
@@ -35,16 +51,10 @@ class StoreNormalizationTest {
         assertThat(result.getFirst().currentPrice()).isEqualByComparingTo("1199.90");
         assertThat(result.getFirst().originalPrice()).isEqualByComparingTo("1999.90");
     }
-    @Test void normalizesPichauStructuredProduct() throws Exception {
-        when(http.get(eq(Store.PICHAU),anyString(),isNull())).thenReturn(fixture("pichau.html"));
-        var result=new PichauMonitor(http,parser,TestSupport.config()).searchProducts(MonitorRequest.product("https://www.pichau.com.br/produto-fixture-pichau"));
-        assertThat(result.getFirst().currentPrice()).isEqualByComparingTo("599.90");
-        assertThat(result.getFirst().store()).isEqualTo(Store.PICHAU);
-    }
     @Test void schemaChangesFailVisibly() {
-        when(http.get(eq(Store.PICHAU),anyString(),isNull())).thenReturn("<html>Loading</html>");
-        assertThatThrownBy(()->new PichauMonitor(http,parser,TestSupport.config())
-            .searchProducts(MonitorRequest.product("https://www.pichau.com.br/produto-fixture-pichau")))
+        when(http.get(eq(Store.AMAZON),anyString(),isNull())).thenReturn("<html>Loading</html>");
+        assertThatThrownBy(()->new AmazonMonitor(http,parser,TestSupport.config())
+            .searchProducts(MonitorRequest.product("https://www.amazon.com.br/dp/B012345678")))
             .isInstanceOf(StoreAccessException.class);
     }
     @Test void amazonErrorPageIsNotReportedAsParserFailure() {

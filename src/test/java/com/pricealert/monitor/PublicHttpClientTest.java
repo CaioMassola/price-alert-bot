@@ -9,6 +9,44 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.time.*;
 import static org.assertj.core.api.Assertions.*;
 class PublicHttpClientTest {
+    @Test void retriesServerErrorsWithIncreasingDelayThenBlocksStore() {
+        var calls=new AtomicInteger(); var delays=new java.util.ArrayList<Long>();
+        var web=WebClient.builder().exchangeFunction(request->{calls.incrementAndGet();
+            return Mono.just(ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build());}).build();
+        var http=new PublicHttpClient(web,TestSupport.config(),delays::add);
+        assertThatThrownBy(()->http.get(Store.KABUM,"https://www.kabum.com.br/produto/1",null))
+            .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(503));
+        assertThat(calls.get()).isEqualTo(3); assertThat(delays).hasSize(2);
+        assertThat(delays.get(0)).isBetween(29000L,30000L); assertThat(delays.get(1)).isBetween(59000L,60000L);
+        assertThatThrownBy(()->http.get(Store.KABUM,"https://www.kabum.com.br/produto/1",null)).isInstanceOf(StoreAccessException.class);
+        assertThat(calls.get()).isEqualTo(3);
+    }
+    @Test void preservesThreadInterruptionDuringBackoff() {
+        var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build())).build();
+        var http=new PublicHttpClient(web,TestSupport.config(),delay->{throw new InterruptedException();});
+        try {
+            assertThatThrownBy(()->http.get(Store.KABUM,"https://www.kabum.com.br/produto/1",null)).hasMessage("Coleta interrompida");
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally { Thread.interrupted(); }
+    }
+    @Test void sendsTokenOnlyToOfficialApiAndReturnsBody() {
+        var requests=new java.util.ArrayList<ClientRequest>();
+        var web=WebClient.builder().exchangeFunction(r->{requests.add(r); return Mono.just(ClientResponse.create(HttpStatus.OK).body("{}").build());}).build();
+        var http=new PublicHttpClient(web,TestSupport.config());
+        assertThat(http.get(Store.MERCADO_LIVRE,"https://api.mercadolibre.com/users/me","test-token")).isEqualTo("{}");
+        http.get(Store.KABUM,"https://www.kabum.com.br/produto/1","test-token");
+        assertThat(requests.get(0).headers().getFirst("Authorization")).isEqualTo("Bearer test-token");
+        assertThat(requests.get(1).headers().containsKey("Authorization")).isFalse();
+    }
+    @Test void rejectsCaptchaAndRedirectLoops() {
+        var captcha=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(HttpStatus.OK).body("robot check").build())).build();
+        assertThatThrownBy(()->new PublicHttpClient(captcha,TestSupport.config()).get(Store.KABUM,"https://www.kabum.com.br/produto/1",null))
+            .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(403));
+        var loop=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(HttpStatus.FOUND).header("Location","/produto/1").build())).build();
+        assertThatThrownBy(()->new PublicHttpClient(loop,TestSupport.config()).get(Store.KABUM,"https://www.kabum.com.br/produto/1",null))
+            .isInstanceOfSatisfying(StoreAccessException.class,e->assertThat(e.status()).isEqualTo(310));
+        assertThat(PublicHttpClient.retryAt("invalid")).isAfter(Instant.now().plusSeconds(290));
+    }
     @Test void rateLimitStopsFurtherRequests() {
         var calls=new AtomicInteger();
         var web=WebClient.builder().exchangeFunction(request->{

@@ -8,6 +8,26 @@ import java.util.List;
 import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.*;
 class MonitoringServiceTest {
+    @Test void schedulerPrioritizesTrackedProductsAndReportsFailures() {
+        for(Store store:Store.values()) for(int code:new int[]{0,401,403,404,422,429,500,410}) {
+            var monitor=mock(StoreMonitor.class); when(monitor.getStore()).thenReturn(store);
+            when(monitor.searchProducts(any())).thenThrow(new StoreAccessException(code,"private detail"));
+            var tracked=mock(TrackedProductRepository.class);
+            var entry=new com.pricealert.domain.product.TrackedProduct(); entry.store=store; entry.url="https://example.test/product";
+            when(tracked.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(entry));
+            var service=new MonitoringService(List.of(monitor),tracked,mock(ProductService.class),TestSupport.config());
+            var scheduler=new com.pricealert.scheduler.PriceMonitorScheduler(service);
+            scheduler.promotions(); scheduler.tracked(); scheduler.tracked(); scheduler.work();
+            verify(monitor).searchProducts(MonitorRequest.product(entry.url));
+            var health=service.health().stream().filter(h->h!=null && h.store()==store).findFirst().orElseThrow();
+            assertThat(health.error()).isEqualTo("HTTP_OR_PARSER_"+code);
+            assertThat(health.detail()).isNotBlank().doesNotContain("private detail");
+            assertThat(health.nextStep()).isNotBlank();
+            doThrow(new IllegalStateException("private detail")).when(monitor).searchProducts(any());
+            scheduler.work();
+            assertThat(service.health().stream().filter(h->h!=null).findFirst().orElseThrow().status()).isEqualTo("ERROR");
+        }
+    }
     @Test void mixesFourQueriesAndDoesNotQueueAnotherRoundWhilePending() {
         var config=mock(com.pricealert.config.MonitorConfig.class);
         when(config.promotionsEnabled()).thenReturn(true);

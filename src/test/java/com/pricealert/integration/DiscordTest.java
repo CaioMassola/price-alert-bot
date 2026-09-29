@@ -11,6 +11,34 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.*;
 class DiscordTest {
+    @Test void rejectsUnofficialWebhooksAndUnconfirmedResponses() {
+        for(String url:List.of("http://discord.com/api/webhooks/123/token","https://evil.test/webhook","invalid url"))
+            assertThatThrownBy(()->new DiscordWebhookClient(WebClient.create(),url)).isInstanceOf(IllegalArgumentException.class);
+        for(HttpStatus status:List.of(HttpStatus.OK,HttpStatus.INTERNAL_SERVER_ERROR)) {
+            var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(status).body("{}").build())).build();
+            assertThatThrownBy(()->new DiscordWebhookClient(web,webhook).send(java.util.Map.of()))
+                .isInstanceOfSatisfying(NotificationException.class,e->assertThat(e.state).isEqualTo("UNKNOWN"));
+        }
+    }
+    @Test void rendersCouponTermsAndSupportsChannelsWithoutIntroduction() {
+        var client=org.mockito.Mockito.mock(DiscordWebhookClient.class);
+        org.mockito.Mockito.when(client.configured()).thenReturn(true);
+        var channel=new DiscordNotificationChannel(client); assertThat(channel.configured()).isTrue();
+        for(var percentage:java.util.Arrays.asList(java.math.BigDecimal.TEN,null)) {
+            var coupon=new com.pricealert.domain.coupon.Coupon("SALE",percentage,null,null,null,"https://www.kabum.com.br/produto/123");
+            var product=new com.pricealert.domain.product.ProductSnapshot("123","Keyboard",coupon.source(),null,
+                new java.math.BigDecimal("100"),new java.math.BigDecimal("200"),com.pricealert.domain.store.Store.KABUM,true,coupon,java.time.Instant.now());
+            var analysis=new DiscountService(TestSupport.config()).analyze(null,product,List.of(),null,false);
+            var alert=new PriceAlert(1L,product,analysis,product.currentPrice());
+            assertThat(channel.payload(alert).toString()).contains("SALE");
+            NotificationChannel fallback=new NotificationChannel() {
+                public boolean configured() { return true; }
+                public void send(PriceAlert value) { channel.send(value); }
+            };
+            fallback.send(alert,true);
+        }
+        org.mockito.Mockito.verify(client,org.mockito.Mockito.times(2)).send(org.mockito.ArgumentMatchers.any());
+    }
     @Test void introductionAppearsAboveOfferOnlyWhenRequested() {
         var client=org.mockito.Mockito.mock(DiscordWebhookClient.class);
         var channel=new DiscordNotificationChannel(client);
