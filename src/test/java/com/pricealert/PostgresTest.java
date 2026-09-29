@@ -48,7 +48,7 @@ class PostgresTest {
     @Test void homepageAndSwaggerDocumentApplicationEndpoints() throws Exception {
         var home=rest.getForEntity("/",String.class);
         assertThat(home.getStatusCode().value()).isEqualTo(200);
-        assertThat(home.getBody()).contains("Documentacao","/swagger-ui/index.html");
+        assertThat(home.getBody()).contains("Documentação","/swagger-ui/index.html");
         assertThat(rest.getForEntity("/swagger-ui/index.html",String.class).getBody()).contains("Swagger UI");
         var response=rest.getForEntity("/v3/api-docs",String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(200);

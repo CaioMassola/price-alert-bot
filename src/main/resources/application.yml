@@ -49,7 +49,7 @@ monitor:
   minimum-samples: 3
   max-products: 5
   promotions-enabled: ${MONITOR_PROMOTIONS_ENABLED:true}
-  queries: ${MONITOR_QUERIES:smartphone,ps5,teclado gamer,notebook,xbox,mouse gamer,iphone,jogos ps5,memoria ram,notebook gamer,samsung galaxy,jogos xbox,ssd,gift card playstation,headset gamer,motorola,gift card xbox,placa de video,gift card steam,monitor gamer,controle ps5,processador,controle xbox,placa mae,nintendo switch,jogos nintendo switch,fonte computador}
+  queries: ${MONITOR_QUERIES:smartphone,ps5,teclado gamer,notebook,xbox,mouse gamer,iphone,jogos ps5,memoria ram,notebook gamer,samsung galaxy,jogos xbox,ssd,gift card playstation,headset gamer,motorola,gift card xbox,placa de video,gift card steam,monitor gamer,controle ps5,processador,controle xbox,placa mae,nintendo switch,jogos nintendo switch,fonte computador,gabinete}
 discord:
   webhook-url: ${DISCORD_WEBHOOK_URL:}
 mercadolivre:
