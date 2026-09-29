@@ -109,6 +109,12 @@ A API não tem autenticação e deve permanecer privada no loopback. Não publiq
 
 ## Desenvolvimento e testes
 
+### GitHub Actions
+
+O workflow [CI](.github/workflows/ci.yml) roda em cada push, pull request e também manualmente pela aba Actions. Valida segredos nos arquivos publicáveis, sintaxe JavaScript, testes do auxiliar OAuth, Checkstyle, testes Java e integração com PostgreSQL temporário, usando Java 21 e Node.js 24 no Ubuntu.
+
+Os relatórios de testes e JaCoCo ficam disponíveis como artefatos por sete dias. Se todas as verificações passarem, o workflow disponibiliza o JAR validado. Não usa credenciais das lojas nem envia mensagens ao Discord. O teste HTTP externo continua opt-in e não faz parte do CI. O deploy automático em servidor não está configurado; o destino e as credenciais de implantação ainda precisam ser definidos.
+
 JDK 21 recomendado. Para desenvolvimento sem Docker, configure PostgreSQL e execute `.\mvnw.cmd spring-boot:run`. Linux/macOS: `sh mvnw`. Os scripts opcionais `setup-local.ps1`, `start-local.ps1` e `stop-local.ps1` preparam um ambiente Windows em `.runtime`. Essa pasta pode conter banco e backups: não a apague indiscriminadamente.
 
 ```powershell

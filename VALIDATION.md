@@ -1,5 +1,11 @@
 # Registro de validação
 
+## GitHub Actions — 28/09/2026
+
+- Workflow CI para push, pull request e execução manual, com permissões somente de leitura e actions oficiais fixadas por SHA.
+- Verifica arquivos publicáveis, sintaxe JavaScript, auxiliar OAuth, Checkstyle, testes Java, PostgreSQL temporário e cobertura. Relatórios e JAR aprovado são armazenados por sete dias; não há deploy automático em servidor.
+- Validação local antes do push: actionlint sem erros; Maven com PostgreSQL passou (77 testes aprovados e um HTTP externo opt-in não executado), zero violações Checkstyle, 100% das 686 linhas e 75,0% das decisões cobertas. Três testes Node aprovados e scanner de segredos sem achados.
+
 ## Renovação Java e persistência Docker — 28/09/2026
 
 - Renovação migrada para Java: verificação a cada minuto e antes das consultas, antecedência de cinco minutos, token atualizado usado sem reiniciar o serviço. Em 401, uma renovação e uma repetição; erros 403 não são contornados.
