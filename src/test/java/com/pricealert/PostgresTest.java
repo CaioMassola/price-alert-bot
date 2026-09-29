@@ -48,10 +48,10 @@ class PostgresTest {
     @Test void homepageAndSwaggerDocumentApplicationEndpoints() throws Exception {
         var home=rest.getForEntity("/",String.class);
         assertThat(home.getStatusCode().value()).isEqualTo(200);
-        assertThat(home.getBody()).contains("Documentação","/documentacao.html","/saude.html");
-        assertThat(rest.getForEntity("/documentacao.html",String.class).getBody()).contains("Voltar ao início","/swagger-ui/index.html");
-        assertThat(rest.getForEntity("/saude.html",String.class).getBody()).contains("Saúde da API","Voltar ao início","/saude.js");
-        assertThat(rest.getForEntity("/saude.js",String.class).getStatusCode().value()).isEqualTo(200);
+        assertThat(home.getBody()).contains("Documentação","/documentation.html","/health.html");
+        assertThat(rest.getForEntity("/documentation.html",String.class).getBody()).contains("Voltar ao início","/swagger-ui/index.html");
+        assertThat(rest.getForEntity("/health.html",String.class).getBody()).contains("Saúde da API","Voltar ao início","/health.js");
+        assertThat(rest.getForEntity("/health.js",String.class).getStatusCode().value()).isEqualTo(200);
         assertThat(rest.getForEntity("/swagger-ui/index.html",String.class).getBody()).contains("Swagger UI");
         var response=rest.getForEntity("/v3/api-docs",String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
