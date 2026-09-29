@@ -9,6 +9,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.time.*;
 import static org.assertj.core.api.Assertions.*;
 class PublicHttpClientTest {
+    @Test void newTokenClearsOnlyAuthenticationPause() {
+        var calls=new AtomicInteger();
+        var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(
+            calls.incrementAndGet()==1?HttpStatus.UNAUTHORIZED:HttpStatus.OK).body("{}").build())).build();
+        var http=new PublicHttpClient(web,TestSupport.config());
+        assertThatThrownBy(()->http.get(Store.MERCADO_LIVRE,"https://api.mercadolibre.com/users/me","old")).isInstanceOf(StoreAccessException.class);
+        assertThat(http.get(Store.MERCADO_LIVRE,"https://api.mercadolibre.com/users/me","new")).isEqualTo("{}");
+        assertThat(calls.get()).isEqualTo(2);
+        http.authenticationRenewed(Store.KABUM);
+    }
     @Test void retriesServerErrorsWithIncreasingDelayThenBlocksStore() {
         var calls=new AtomicInteger(); var delays=new java.util.ArrayList<Long>();
         var web=WebClient.builder().exchangeFunction(request->{calls.incrementAndGet();

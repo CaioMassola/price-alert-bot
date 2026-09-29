@@ -14,6 +14,8 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import static org.assertj.core.api.Assertions.*;
 @EnabledIfSystemProperty(named="postgres",matches="true")
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
+    "mercadolivre.refresh-token=","mercadolivre.access-token=","mercadolivre.expires-at=",
+    "mercadolivre.client-id=","mercadolivre.token-file=target/test-oauth-unused.json",
     "monitor.promotions-enabled=false","monitor.tracked-products.interval=PT24H",
     "discord.webhook-url=","debug=false"
 })

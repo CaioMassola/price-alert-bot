@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.*;
 @SpringBootTest(properties={
+    "mercadolivre.refresh-token=","mercadolivre.access-token=","mercadolivre.expires-at=",
+    "mercadolivre.client-id=","mercadolivre.token-file=target/test-oauth-unused.json",
     "spring.datasource.url=jdbc:h2:mem:pipeline;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
     "spring.datasource.username=sa","spring.datasource.password=","spring.datasource.driver-class-name=org.h2.Driver",
     "monitor.promotions-enabled=false","monitor.tracked-products.interval=PT24H","discord.webhook-url=","debug=false"

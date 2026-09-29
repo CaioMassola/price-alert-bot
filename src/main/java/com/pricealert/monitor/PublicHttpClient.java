@@ -13,6 +13,7 @@ public class PublicHttpClient {
     private final MonitorConfig config;
     private final Map<Store,Instant> blockedUntil=new EnumMap<>(Store.class);
     private final Map<Store,Integer> blockedStatus=new EnumMap<>(Store.class);
+    private final Map<Store,String> rejectedTokens=new EnumMap<>(Store.class);
     private Instant nextRequest=Instant.EPOCH;
     private final Sleeper sleeper;
     @org.springframework.beans.factory.annotation.Autowired
@@ -21,8 +22,12 @@ public class PublicHttpClient {
         this.client=client; this.config=config; this.sleeper=sleeper;
     }
     @FunctionalInterface interface Sleeper { void sleep(long milliseconds) throws InterruptedException; }
+    public synchronized void authenticationRenewed(Store store) {
+        if(blockedStatus.getOrDefault(store,0)==401) { blockedUntil.remove(store); blockedStatus.remove(store); rejectedTokens.remove(store); }
+    }
     public synchronized String get(Store store, String url, String token) {
         URI uri=store.validateUrl(url);
+        if(blockedStatus.getOrDefault(store,0)==401 && !Objects.equals(token,rejectedTokens.get(store))) authenticationRenewed(store);
         if(blockedUntil.getOrDefault(store,Instant.EPOCH).isAfter(Instant.now()))
             throw new StoreAccessException(blockedStatus.getOrDefault(store,429),"Loja em pausa apos erro ou limite de acesso");
         for(int attempt=0;attempt<3;attempt++) {
@@ -52,6 +57,7 @@ public class PublicHttpClient {
                 throw new StoreAccessException(status,"Limite de acesso; nova tentativa adiada");
             }
             if(status==401 || status==403) {
+                if(status==401) rejectedTokens.put(store,token);
                 blockedUntil.put(store,Instant.now().plus(Duration.ofHours(1)));
                 blockedStatus.put(store,status);
                 throw new StoreAccessException(status,"Acesso restrito pela loja");

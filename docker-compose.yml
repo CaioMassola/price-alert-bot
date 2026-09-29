@@ -21,6 +21,9 @@ services:
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/pricealert
       SERVER_ADDRESS: 0.0.0.0
+      MERCADO_LIVRE_TOKEN_FILE: /app/oauth/mercadolivre.json
+    volumes:
+      - oauth-data:/app/oauth
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -29,3 +32,4 @@ services:
     restart: unless-stopped
 volumes:
   postgres-data:
+  oauth-data:

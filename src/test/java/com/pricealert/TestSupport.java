@@ -7,6 +7,11 @@ import java.time.*;
 import java.math.BigDecimal;
 import java.util.*;
 public class TestSupport {
+    public static com.pricealert.monitor.mercadolivre.MercadoLivreTokens tokens(String token) {
+        var provider=org.mockito.Mockito.mock(com.pricealert.monitor.mercadolivre.MercadoLivreTokens.class);
+        org.mockito.Mockito.when(provider.accessToken()).thenReturn(token);
+        return provider;
+    }
     public static MonitorConfig config() {
         return new MonitorConfig(Duration.ZERO,Duration.ofSeconds(2),Duration.ofHours(6),Duration.ofDays(7),
             new BigDecimal("40"),new BigDecimal("20"),new BigDecimal("10"),3,5,true,List.of("teclado"));

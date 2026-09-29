@@ -4,23 +4,22 @@ import com.pricealert.config.MonitorConfig;
 import com.pricealert.domain.store.Store;
 import com.pricealert.domain.product.ProductSnapshot;
 import com.fasterxml.jackson.databind.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import java.util.*;
 import java.time.Instant;
 @Component
 public class MercadoLivreMonitor extends HtmlStoreMonitor {
-    private final String token;
+    private final MercadoLivreTokens tokens;
     private final ObjectMapper mapper;
     public MercadoLivreMonitor(PublicHttpClient http, StructuredProductParser parser, MonitorConfig config,
-        ObjectMapper mapper,@Value("${mercadolivre.access-token:}") String token) {
-        super(http,parser,config); this.token=token; this.mapper=mapper;
+        ObjectMapper mapper,MercadoLivreTokens tokens) {
+        super(http,parser,config); this.tokens=tokens; this.mapper=mapper;
     }
     public Store getStore() { return Store.MERCADO_LIVRE; }
     protected String searchUrl(String query) { return "https://lista.mercadolivre.com.br/"+encode(query).replace("+","-"); }
     protected boolean isProductUrl(String url) { return url.contains("produto.mercadolivre.com.br/MLB-") || url.matches(".*mercadolivre.com.br/.*/p/MLB[0-9]+"); }
     @Override public List<ProductSnapshot> searchProducts(MonitorRequest request) {
-        if(token.isBlank()) return super.searchProducts(request);
+        if(tokens.accessToken().isBlank()) return super.searchProducts(request);
         try {
             List<ProductSnapshot> result=new ArrayList<>();
             if(request.productUrl()!=null) {
@@ -50,7 +49,14 @@ public class MercadoLivreMonitor extends HtmlStoreMonitor {
         } catch(com.fasterxml.jackson.core.JsonProcessingException e) { throw new StoreAccessException(422,"JSON invalido da API"); }
     }
     private JsonNode read(String path) throws com.fasterxml.jackson.core.JsonProcessingException {
-        return mapper.readTree(http.get(getStore(),"https://api.mercadolibre.com"+path,token));
+        String token=tokens.accessToken();
+        try { return mapper.readTree(http.get(getStore(),"https://api.mercadolibre.com"+path,token)); }
+        catch(StoreAccessException e) {
+            if(e.status()!=401) throw e;
+            String renewed=tokens.afterUnauthorized(token);
+            http.authenticationRenewed(getStore());
+            return mapper.readTree(http.get(getStore(),"https://api.mercadolibre.com"+path,renewed));
+        }
     }
     private List<ProductSnapshot> catalogOffers(String id,int limit) throws com.fasterxml.jackson.core.JsonProcessingException {
         if(!id.matches("MLB[0-9]+")) throw new StoreAccessException(422,"Identificador de catalogo invalido");

@@ -50,6 +50,11 @@ discord:
   webhook-url: ${DISCORD_WEBHOOK_URL:}
 mercadolivre:
   access-token: ${MERCADO_LIVRE_ACCESS_TOKEN:}
+  client-id: ${MERCADO_LIVRE_CLIENT_ID:}
+  client-secret: ${MERCADO_LIVRE_CLIENT_SECRET:}
+  refresh-token: ${MERCADO_LIVRE_REFRESH_TOKEN:}
+  expires-at: ${MERCADO_LIVRE_TOKEN_EXPIRES_AT:}
+  token-file: ${MERCADO_LIVRE_TOKEN_FILE:.runtime/oauth/mercadolivre.json}
 logging:
   level:
     root: INFO

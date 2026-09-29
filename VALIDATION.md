@@ -1,5 +1,14 @@
 # Registro de validação
 
+## Renovação Java e persistência Docker — 28/09/2026
+
+- Renovação migrada para Java: verificação a cada minuto e antes das consultas, antecedência de cinco minutos, token atualizado usado sem reiniciar o serviço. Em 401, uma renovação e uma repetição; erros 403 não são contornados.
+- Tokens rotacionados salvos atomicamente no volume privado `oauth-data`. Client ID verificado ao carregar; estado persistido tem prioridade sobre o ambiente inicial. Linux: diretório 700 e arquivo 600, proprietário `bot`, verificados no container.
+- Renovação real pela aplicação validada com `/users/me` HTTP 200. Container recriado mantendo o volume; tarefa Windows desativada e auxiliares de renovação externa removidos.
+- `mvnw -Dpostgres=true clean verify`: 78 testes, 77 aprovados e um HTTP externo opt-in não executado. Zero violações Checkstyle; 686/686 linhas (100%) e 505/673 decisões (75,0%), sem exclusões.
+- Testes incluem concorrência, restauração após reinício, rejeição de tokens, respostas inválidas, recuperação de falha de gravação e repetição da consulta após 401. Falhas de renovação têm espera de cinco minutos.
+- Produção requer uma única instância, volume persistente protegido e credenciais iniciais válidas. Revogação da autorização ou perda dos tokens durante uma falha de persistência pode exigir novo login. Não depende de Node.js ou Agendador do Windows.
+
 ## Renovação automática OAuth — 28/09/2026
 
 - Auxiliar Windows verifica validade a cada cinco minutos, renova com dez minutos de antecedência e persiste access/refresh token antes de recarregar o serviço Docker.

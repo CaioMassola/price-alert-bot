@@ -41,7 +41,7 @@ class StoreNormalizationTest {
         assertThat(result).allSatisfy(p->{ assertThat(p.name()).isNotBlank(); assertThat(p.url()).startsWith("https://www.kabum.com.br/produto/"); });
     }
     @Test void normalizesMercadoLivreApi() throws Exception {
-        var monitor=new MercadoLivreMonitor(http,parser,TestSupport.config(),mapper,"token-for-test");
+        var monitor=new MercadoLivreMonitor(http,parser,TestSupport.config(),mapper,TestSupport.tokens("token-for-test"));
         var result=monitor.normalize(mapper.readTree(fixture("mercadolivre.json")));
         assertThat(result.currentPrice()).isEqualByComparingTo("599.90"); assertThat(result.available()).isTrue();
     }

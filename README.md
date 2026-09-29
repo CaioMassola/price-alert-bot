@@ -122,19 +122,23 @@ node scripts/check-secrets.mjs
 
 `verify` executa testes, Checkstyle e gera cobertura JaCoCo em `target/site/jacoco/index.html`. O lint básico verifica nomes de arquivos/tipos, equals/hashCode, instruções vazias e imports internos proibidos. Não há limite mínimo de cobertura configurado. O teste HTTP real é opt-in (`-Dpostgres=true -Dlive=true`), não envia ao Discord e depende da disponibilidade da loja.
 
-Na validação de 28/09/2026, a suíte com PostgreSQL cobriu 100% das 610 linhas e 74,5% das decisões, sem excluir classes de produção. Foram 69 testes aprovados e um teste HTTP externo opt-in não executado. Cobertura de linhas não garante ausência de erros nem valida disponibilidade das lojas externas.
+Na validação de 28/09/2026, a suíte com PostgreSQL cobriu 100% das 686 linhas e 75,0% das decisões, sem excluir classes de produção. Foram 77 testes aprovados e um teste HTTP externo opt-in não executado. Cobertura de linhas não garante ausência de erros nem valida disponibilidade das lojas externas.
 
 A migração V2 remove dados das lojas descontinuadas e os registros relacionados. Faça backup do banco antes de atualizar uma instalação existente.
 
 O auxiliar OAuth escuta em `127.0.0.1:8765`, valida estado temporário de uso único e salva tokens localmente. `node scripts/mercadolivre-oauth.mjs authorize --manual` permite testar a troca manual. Exige retorno HTTPS registrado e em funcionamento. O Compose não abre túneis públicos automaticamente.
 
-### Renovação automática no Windows
+### Renovação automática em produção
 
-Com Node.js e Docker Desktop instalados, execute `powershell -File scripts/install-mercadolivre-refresh.ps1` uma vez. A tarefa `Milize-MercadoLivre-Refresh` verifica o token a cada cinco minutos durante sua sessão Windows e renova quando faltam dez minutos para vencer. Precisa de `MERCADO_LIVRE_CLIENT_ID`, `MERCADO_LIVRE_CLIENT_SECRET`, `MERCADO_LIVRE_REFRESH_TOKEN` e `MERCADO_LIVRE_TOKEN_EXPIRES_AT` no `.env`.
+A aplicação Java verifica o token a cada minuto e antes das consultas. Quando faltam cinco minutos para vencer, usa o refresh token para renová-lo e passa a usar o novo acesso sem reiniciar. Uma resposta 401 permite uma renovação e uma repetição da consulta; 403 e limites da loja não são contornados. Falhas de renovação têm espera de cinco minutos.
 
-O auxiliar salva os dois tokens novos no `.env` antes de recriar apenas o serviço do bot. Se o Docker estiver indisponível, tenta recarregar novamente na próxima execução, sem reutilizar o refresh token antigo. Log sem credenciais: `.runtime/ml-refresh.log`. Uma autorização revogada exige novo login. A tarefa depende do PC ligado e da sessão Windows; ela não vem embutida na imagem Docker. Evite renovar manualmente em paralelo. Se um encerramento forçado deixar `.runtime/ml-refresh.lock`, confirme que nenhuma renovação está em execução antes de remover esse arquivo.
+Para a primeira execução, configure `MERCADO_LIVRE_CLIENT_ID`, `MERCADO_LIVRE_CLIENT_SECRET`, `MERCADO_LIVRE_ACCESS_TOKEN`, `MERCADO_LIVRE_REFRESH_TOKEN` e `MERCADO_LIVRE_TOKEN_EXPIRES_AT` no ambiente privado do servidor. Faça o login inicial pelo auxiliar OAuth e transfira as credenciais por um meio seguro. Depois execute `docker compose up -d --build`. Não é necessário Node.js, Agendador do Windows ou reinicialização periódica no servidor.
 
-Teste do auxiliar: `node --test scripts/refresh-mercadolivre.test.mjs`. Execução manual: `node scripts/refresh-mercadolivre.mjs`. Para desativar a automação: `Disable-ScheduledTask -TaskName Milize-MercadoLivre-Refresh`.
+O Compose preserva os tokens no volume `oauth-data`, em `/app/oauth/mercadolivre.json`. O arquivo tem permissão 600 e o diretório 700 no Linux, acessíveis pelo usuário do bot. Não são criptografados pelo aplicativo: proteja o disco/volume e seus backups no servidor. O arquivo persistido tem prioridade sobre os tokens iniciais do ambiente e fica associado ao Client ID. O `.env` não é atualizado pelo Java. Fora do Docker, o caminho padrão é `.runtime/oauth/mercadolivre.json`, ajustável por `MERCADO_LIVRE_TOKEN_FILE`.
+
+Mantenha uma única instância e desative qualquer renovador externo para evitar uso concorrente de refresh tokens. Preserve `oauth-data` nas atualizações e migrações; `docker compose down -v` apaga esse estado. Se a autorização for revogada, pare o bot, faça um novo login, atualize as credenciais iniciais e remova o arquivo privado antigo antes de iniciar novamente. Não exclua o estado durante o funcionamento normal: o refresh token antigo do `.env` pode já ter sido consumido.
+
+A gravação é atômica. Se ela falhar após a renovação, o processo conserva os tokens novos na memória e tenta salvar novamente; corrija o volume antes de reiniciar. Uma interrupção nesse intervalo pode exigir novo login, pois a rotação no provedor e a gravação local não formam uma transação única.
 
 ## Segurança e limitações
 
