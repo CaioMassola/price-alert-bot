@@ -1,19 +1,26 @@
 package com.pricealert.integration.discord;
+
 import com.pricealert.integration.NotificationChannel;
 import com.pricealert.domain.alert.PriceAlert;
+import com.pricealert.domain.product.ProductSnapshot;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import java.util.*;
 import java.math.BigDecimal;
+
 @Component
 public class DiscordNotificationChannel implements NotificationChannel {
-    private final DiscordWebhookClient client;
-    public DiscordNotificationChannel(DiscordWebhookClient client) { this.client=client; }
-    public boolean configured() { return client.configured(); }
-    public void send(PriceAlert alert) { client.send(payload(alert)); }
+    private final DiscordNotificationService service;
+    @Autowired
+    public DiscordNotificationChannel(DiscordNotificationService service) { this.service=service; }
+    public boolean configured() { return service.configured(); }
+    public boolean configured(com.pricealert.domain.store.Store store) { return service.configured(store); }
+    public void send(PriceAlert alert) { service.notify(payload(alert), alert.product().store()); }
     @Override public void send(PriceAlert alert, boolean introduction) {
         var message=new LinkedHashMap<String,Object>(payload(alert));
         if(introduction) message.put("content","Olá, soldados! Tudo bem? Encontrei novas promoções! 💜");
-        client.send(message);
+        service.notify(message, alert.product().store());
     }
     public Map<String,Object> payload(PriceAlert alert) {
         var product=alert.product(); var analysis=alert.analysis();

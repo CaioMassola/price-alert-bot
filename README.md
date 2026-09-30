@@ -8,11 +8,13 @@ Bot pessoal em Java 21 e Spring Boot para descobrir descontos, acompanhar preço
 | --- | --- |
 | KaBuM | Coleta e entrega de ofertas reais no Discord confirmadas |
 | Mercado Livre | Coleta de ofertas de catálogo e histórico confirmados; exige token válido |
+| Steam | Coleta de ofertas em destaque no feed público brasileiro, com webhook de jogos separado |
+| Epic Games | Coleta de promoções ativas no feed brasileiro, incluindo jogos temporariamente gratuitos, com webhook de jogos separado |
 | Amazon | Pendente — integração funcional não concluída; não coleta nem envia ofertas validadas |
 
 **Amazon ainda não está integrada funcionalmente.** Existe uma tentativa de leitura de páginas públicas no código, mas ela não foi validada como operacional. O acesso ao Amazon Associados/Creators API não foi habilitado, e o cliente dessa API não foi implementado. Portanto, Amazon não deve ser considerada uma loja suportada nesta versão; adicionar credenciais ao `.env` não basta para ativá-la.
 
-Mercado Livre usa `/products/search`, `/products/{id}` e `/products/{id}/items`. A busca geral `/sites/MLB/search?q=...` retornou 403; não foi confirmada a política interna responsável. Catálogo não cobre todo o marketplace. Links diretos de anúncios ainda dependem de `/items/{id}`. **Renovação automática de tokens ainda não implementada:** ao renovar pelo OAuth oficial, salve os novos tokens no `.env` e recrie o serviço.
+Mercado Livre usa `/products/search`, `/products/{id}` e `/products/{id}/items`. A busca geral `/sites/MLB/search?q=...` retornou 403; não foi confirmada a política interna responsável. Catálogo não cobre todo o marketplace. Links diretos de anúncios ainda dependem de `/items/{id}`. A aplicação renova os tokens automaticamente quando configurada com as credenciais OAuth e armazenamento persistente descritos em **Renovação automática em produção**.
 
 Consulte [requisitos de acesso](docs/ACESSO-LOJAS.md), [diagnóstico Mercado Livre](docs/MERCADO-LIVRE-DIAGNOSTICO.md) e [evidências datadas](VALIDATION.md). Registros antigos descrevem o estado naquela data.
 
@@ -45,6 +47,8 @@ Mantenha Docker e computador ligados. Não use `docker compose down -v` para par
 
 Crie um webhook em **Configurações do canal → Integrações → Webhooks** e coloque a URL em `DISCORD_WEBHOOK_URL`. Nome e avatar são os configurados no webhook.
 
+Para Steam e Epic Games, crie outro webhook no canal de jogos e configure `DISCORD_WEBHOOK_GAMES`. Os alertas dessas duas lojas são enviados exclusivamente para ele; as outras lojas usam `DISCORD_WEBHOOK_URL`. Se o webhook de jogos não estiver configurado, seus alertas aguardam sem serem marcados como enviados e sem serem redirecionados ao canal principal. Alertas pendentes com mais de uma hora são descartados como antigos. A saudação e a espera por limites de envio são controladas separadamente para cada canal. Após editar o `.env`, recrie o serviço para carregar os valores.
+
 A primeira oferta após iniciar o bot, ou após 15 minutos sem entregas confirmadas, inclui acima do cartão:
 
 > Olá, soldados! Tudo bem? Encontrei novas promoções! 💜
@@ -59,6 +63,8 @@ As 27 buscas padrão cobrem celulares, PS5/Xbox/Switch, jogos, gift cards, noteb
 
 A descoberta exige **25% de desconto** sobre a referência da loja ou, com histórico suficiente, sobre a média histórica. Um novo menor preço sozinho não ignora o mínimo. O desconto da loja é marcado como não confirmado pelo histórico quando faltam dados. Histórico suficiente exige três amostras e sete dias.
 
+Steam e Epic Games consultam seus feeds uma vez por rodada, independentemente dos termos em `MONITOR_QUERIES`, respeitando os mesmos percentuais mínimos configurados no ambiente. Steam usa `featuredcategories` com região Brasil e coleta aplicativos em promoção na seção de destaques; não cobre todo o catálogo nem pacotes. Epic usa `freeGamesPromotions` para o Brasil e aceita somente ofertas com período promocional ativo, preço em reais e redução sobre um preço original positivo. Jogos temporariamente gratuitos entram como 100% de desconto; jogos permanentemente gratuitos, promoções futuras e expiradas não entram. Ofertas pagas presentes nesse feed também podem ser coletadas. Cada feed retorna até cinco produtos por rodada; isso não garante encontrar todas as ofertas. Links rastreados de jogos só são encontrados enquanto estiverem no respectivo feed de promoções.
+
 Regras de produtos explicitamente rastreados — preço-alvo, queda observada de 10%, reposição e novo cupom — continuam independentes. Produtos indisponíveis não geram alerta. Preço original ausente não é inventado. Frete, pagamento e regras dos cupons devem ser conferidos na loja.
 
 ## Configuração
@@ -68,6 +74,7 @@ Regras de produtos explicitamente rastreados — preço-alvo, queda observada de
 | DATABASE_URL | JDBC PostgreSQL; Compose usa o serviço `postgres` |
 | DATABASE_USERNAME / DATABASE_PASSWORD | Credenciais do banco |
 | DISCORD_WEBHOOK_URL | Segredo do webhook |
+| DISCORD_WEBHOOK_GAMES | Webhook exclusivo da Steam e Epic Games; opcional, sem alternativa para o principal |
 | MERCADO_LIVRE_ACCESS_TOKEN | Token oficial de acesso |
 | MERCADO_LIVRE_CLIENT_ID | ID da aplicação OAuth |
 | MERCADO_LIVRE_CLIENT_SECRET | Segredo da aplicação OAuth |
@@ -135,6 +142,8 @@ node scripts/check-secrets.mjs
 Na validação de 29/09/2026, a suíte com PostgreSQL cobriu 100% das 686 linhas, dos 673 caminhos condicionais e das 5.312 instruções, sem excluir classes de produção. A cobertura usa respostas simuladas das lojas e do Discord, incluindo falhas e limites de entrada. O teste HTTP externo continua opt-in. Cobertura total não garante ausência de erros nem valida disponibilidade das lojas externas.
 
 A migração V2 remove dados das lojas descontinuadas e os registros relacionados. Faça backup do banco antes de atualizar uma instalação existente.
+
+A migração V3 permite preço zero no histórico para registrar promoções gratuitas de jogos, preservando os dados existentes e a rejeição de valores negativos. A validação da aplicação exige loja de jogos e preço original positivo para aceitar preço zero. `/api/status` informa separadamente `discordConfigured` e `discordGamesConfigured`, também exibidos na página de saúde.
 
 O auxiliar OAuth escuta em `127.0.0.1:8765`, valida estado temporário de uso único e salva tokens localmente. `node scripts/mercadolivre-oauth.mjs authorize --manual` permite testar a troca manual. Exige retorno HTTPS registrado e em funcionamento. O Compose não abre túneis públicos automaticamente.
 

@@ -52,6 +52,7 @@ monitor:
   queries: ${MONITOR_QUERIES:smartphone,ps5,teclado gamer,notebook,xbox,mouse gamer,iphone,jogos ps5,memoria ram,notebook gamer,samsung galaxy,jogos xbox,ssd,gift card playstation,headset gamer,motorola,gift card xbox,placa de video,gift card steam,monitor gamer,controle ps5,processador,controle xbox,placa mae,nintendo switch,jogos nintendo switch,fonte computador,gabinete}
 discord:
   webhook-url: ${DISCORD_WEBHOOK_URL:}
+  webhook-games: ${DISCORD_WEBHOOK_GAMES:}
 mercadolivre:
   access-token: ${MERCADO_LIVRE_ACCESS_TOKEN:}
   client-id: ${MERCADO_LIVRE_CLIENT_ID:}

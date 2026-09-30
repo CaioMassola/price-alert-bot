@@ -35,8 +35,8 @@ class AlertDeliveryServiceTest {
         Alert alert=new Alert(); alert.productId=1L; alert.price=snapshot.currentPrice();
         alert.createdAt=Instant.now(); alert.status="PENDING";
         alert.payload=mapper.writeValueAsString(new PriceAlert(1L,snapshot,analysis,snapshot.currentPrice()));
-        product.currentPrice=alert.price; product.available=true;
-        when(channel.configured()).thenReturn(true);
+        product.currentPrice=alert.price; product.available=true; product.store=com.pricealert.domain.store.Store.KABUM;
+        when(channel.configured()).thenReturn(true); when(channel.configured(any(com.pricealert.domain.store.Store.class))).thenReturn(true);
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         when(products.findById(1L)).thenReturn(Optional.of(product));
         when(alerts.findTop10ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(eq("PENDING"),any()))
@@ -79,5 +79,25 @@ class AlertDeliveryServiceTest {
     }
     @Test void unconfiguredChannelDoesNotClaimAlerts() {
         service.deliver(); verifyNoInteractions(alerts,products);
+    }
+    @Test void missingStoreWebhookLeavesAlertPendingWithoutClaim() throws Exception {
+        Alert alert=pending();
+        when(channel.configured(product.store)).thenReturn(false);
+        service.deliver();
+        assertThat(alert.status).isEqualTo("PENDING");
+        assertThat(alert.deliveryError).isEqualTo("NOT_CONFIGURED");
+        assertThat(alert.nextAttemptAt).isAfter(Instant.now());
+        assertThat(alert.attempts).isZero(); verify(channel,never()).send(any(),anyBoolean());
+    }
+    @Test void separateChannelIsNotBlockedByMainRateLimitAndHasOwnIntroduction() throws Exception {
+        Alert main=pending();
+        doThrow(new NotificationException("RATE_LIMITED",Instant.now().plusSeconds(60))).when(channel).send(any(),anyBoolean());
+        service.deliver(); assertThat(main.status).isEqualTo("PENDING");
+        doNothing().when(channel).send(any(),anyBoolean());
+        Alert game=pending(); product.store=com.pricealert.domain.store.Store.EPIC;
+        service.deliver(); assertThat(game.status).isEqualTo("SENT");
+        verify(channel,times(2)).send(any(),eq(true));
+        pending(); product.store=com.pricealert.domain.store.Store.STEAM; service.deliver();
+        verify(channel).send(any(),eq(false));
     }
 }

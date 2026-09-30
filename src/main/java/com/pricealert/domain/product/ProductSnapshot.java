@@ -8,8 +8,10 @@ public record ProductSnapshot(String externalId, String name, String url, String
     Coupon coupon, Instant collectedAt) {
     public ProductSnapshot {
         if (externalId == null || externalId.isBlank() || name == null || name.isBlank() ||
-            currentPrice == null || currentPrice.signum() <= 0 || store == null || collectedAt == null)
+            currentPrice == null || currentPrice.signum() < 0 || store == null || collectedAt == null)
             throw new IllegalArgumentException("Resposta da loja sem identificacao ou preco valido");
+        if(currentPrice.signum()==0 && (!store.isGameStore() || originalPrice==null || originalPrice.signum()<=0))
+            throw new IllegalArgumentException("Preco zero exige promocao de jogo com referencia positiva");
         if (externalId.length() > 200 || name.length() > 1000 || url == null || url.length() > 2048)
             throw new IllegalArgumentException("Resposta da loja excede os limites");
         store.validateUrl(url);

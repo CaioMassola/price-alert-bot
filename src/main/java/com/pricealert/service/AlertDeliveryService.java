@@ -17,8 +17,8 @@ public class AlertDeliveryService {
     private final NotificationChannel channel;
     private final ObjectMapper mapper;
     private final TransactionTemplate tx;
-    private Instant nextDelivery=Instant.EPOCH;
-    private Instant lastConfirmedDelivery=Instant.EPOCH;
+    private final java.util.Map<Boolean,Instant> nextDelivery=new java.util.HashMap<>();
+    private final java.util.Map<Boolean,Instant> lastConfirmedDelivery=new java.util.HashMap<>();
     public AlertDeliveryService(AlertRepository alerts, ProductRepository products, NotificationChannel channel,
         ObjectMapper mapper, PlatformTransactionManager manager) {
         this.alerts=alerts; this.products=products; this.channel=channel; this.mapper=mapper;
@@ -26,19 +26,24 @@ public class AlertDeliveryService {
     }
     @Scheduled(fixedDelayString="PT10S",initialDelayString="PT20S")
     public synchronized void deliver() {
-        if(!channel.configured() || nextDelivery.isAfter(Instant.now())) return;
+        if(!channel.configured()) return;
         for(Alert alert:alerts.findTop10ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc("PENDING",Instant.now())) {
             var current=products.findById(alert.productId).orElse(null);
             if(current==null || !current.available || current.currentPrice.compareTo(alert.price)!=0 ||
                 alert.createdAt.isBefore(Instant.now().minus(Duration.ofHours(1)))) {
                 alert.status="STALE"; alerts.save(alert); continue;
             }
+            boolean games=current.store.isGameStore();
+            if(!channel.configured(current.store)) {
+                alert.deliveryError="NOT_CONFIGURED"; alert.nextAttemptAt=Instant.now().plusSeconds(300); alerts.save(alert); continue;
+            }
+            if(nextDelivery.getOrDefault(games,Instant.EPOCH).isAfter(Instant.now())) continue;
             // Durable claim precedes the external side effect. SENDING after a crash requires manual review.
             tx.executeWithoutResult(status->{ alert.status="SENDING"; alert.attempts++; alerts.saveAndFlush(alert); });
             try {
-                boolean introduction=lastConfirmedDelivery.plus(Duration.ofMinutes(15)).isBefore(Instant.now());
+                boolean introduction=lastConfirmedDelivery.getOrDefault(games,Instant.EPOCH).plus(Duration.ofMinutes(15)).isBefore(Instant.now());
                 channel.send(mapper.readValue(alert.payload,PriceAlert.class),introduction);
-                lastConfirmedDelivery=Instant.now();
+                lastConfirmedDelivery.put(games,Instant.now());
                 tx.executeWithoutResult(status->{
                     alert.status="SENT"; alert.sentAt=Instant.now(); alert.deliveryError=null; alerts.save(alert);
                     products.findById(alert.productId).ifPresent(p->{ p.lastAlertPrice=alert.price; products.save(p); });
@@ -47,7 +52,7 @@ public class AlertDeliveryService {
             } catch(NotificationException e) {
                 alert.deliveryError=e.state;
                 if("RATE_LIMITED".equals(e.state)) {
-                    alert.status="PENDING"; alert.nextAttemptAt=e.retryAt; nextDelivery=e.retryAt; alerts.save(alert); return;
+                    alert.status="PENDING"; alert.nextAttemptAt=e.retryAt; nextDelivery.put(games,e.retryAt); alerts.save(alert); continue;
                 }
                 alert.status=e.state; alerts.save(alert);
                 log.warn("Alert delivery requires review id={} state={}",alert.id,alert.status);

@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.*;
     "mercadolivre.refresh-token=","mercadolivre.access-token=","mercadolivre.expires-at=",
     "mercadolivre.client-id=","mercadolivre.token-file=target/test-oauth-unused.json",
     "monitor.promotions-enabled=false","monitor.tracked-products.interval=PT24H",
-    "discord.webhook-url=","debug=false"
+    "discord.webhook-url=","discord.webhook-games=","debug=false"
 })
 @DirtiesContext
 class PostgresTest {
@@ -44,6 +44,13 @@ class PostgresTest {
         assertThat(history.count()).isPositive(); assertThat(alerts.count()).isPositive();
         assertThat(rest.getForEntity("/actuator/health",String.class).getBody()).contains("UP");
         assertThat(rest.getForEntity("/api/products",String.class).getBody()).contains("Produto teste");
+        var free=new com.pricealert.domain.product.ProductSnapshot("free-game","Temporary giveaway",
+            "https://store.epicgames.com/pt-BR/p/free-game",null,java.math.BigDecimal.ZERO,java.math.BigDecimal.TEN,
+            com.pricealert.domain.store.Store.EPIC,true,null,java.time.Instant.now());
+        service.accept(free,null,false);
+        var game=products.findByStoreAndExternalId(free.store(),free.externalId()).orElseThrow();
+        assertThat(game.currentPrice).isZero(); assertThat(game.storeDiscount).isEqualByComparingTo("100");
+        assertThat(history.findByProductIdOrderByCollectedAtAsc(game.id)).hasSize(1);
     }
     @Test void homepageAndSwaggerDocumentApplicationEndpoints() throws Exception {
         var home=rest.getForEntity("/",String.class);

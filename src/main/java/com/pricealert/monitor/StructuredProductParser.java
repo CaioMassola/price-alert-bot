@@ -74,6 +74,8 @@ public class StructuredProductParser {
             case MERCADO_LIVRE -> "(MLB-?[0-9]+)";
             case AMAZON -> "/(?:dp|gp/product)/([A-Z0-9]{10})";
             case KABUM -> "/produto/([0-9]+)";
+            case STEAM -> "/app/([0-9]+)(?:/|$|\\?)";
+            case EPIC -> "/p/([a-z0-9-]+)(?:/|$|\\?)";
         };
         var match=java.util.regex.Pattern.compile(pattern).matcher(url);
         if(!match.find()) throw new StoreAccessException(422,"Produto sem identificador reconhecivel");

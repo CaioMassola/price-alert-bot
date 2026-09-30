@@ -31,7 +31,7 @@ class DiscordTest {
             .isInstanceOfSatisfying(NotificationException.class,e->assertThat(e.state).isEqualTo("UNKNOWN"));
     }
     @Test void rendersHistoricalPricesImageAndFixedCouponForOtherStores() {
-        var channel=new DiscordNotificationChannel(org.mockito.Mockito.mock(DiscordWebhookClient.class));
+        var channel=new DiscordNotificationChannel(new DiscordNotificationService(org.mockito.Mockito.mock(DiscordWebhookClient.class),org.mockito.Mockito.mock(DiscordWebhookClient.class)));
         var coupon=new com.pricealert.domain.coupon.Coupon("FIXED",null,java.math.BigDecimal.TEN,null,null,"source");
         var product=new com.pricealert.domain.product.ProductSnapshot("MLB1","Product","https://produto.mercadolivre.com.br/MLB-1","https://image.test/a",
             new java.math.BigDecimal("100"),null,com.pricealert.domain.store.Store.MERCADO_LIVRE,true,coupon,java.time.Instant.now());
@@ -52,7 +52,7 @@ class DiscordTest {
     @Test void rendersCouponTermsAndSupportsChannelsWithoutIntroduction() {
         var client=org.mockito.Mockito.mock(DiscordWebhookClient.class);
         org.mockito.Mockito.when(client.configured()).thenReturn(true);
-        var channel=new DiscordNotificationChannel(client); assertThat(channel.configured()).isTrue();
+        var channel=new DiscordNotificationChannel(new DiscordNotificationService(client,org.mockito.Mockito.mock(DiscordWebhookClient.class))); assertThat(channel.configured()).isTrue();
         for(var percentage:java.util.Arrays.asList(java.math.BigDecimal.TEN,null)) {
             var coupon=new com.pricealert.domain.coupon.Coupon("SALE",percentage,null,null,null,"https://www.kabum.com.br/produto/123");
             var product=new com.pricealert.domain.product.ProductSnapshot("123","Keyboard",coupon.source(),null,
@@ -70,7 +70,7 @@ class DiscordTest {
     }
     @Test void introductionAppearsAboveOfferOnlyWhenRequested() {
         var client=org.mockito.Mockito.mock(DiscordWebhookClient.class);
-        var channel=new DiscordNotificationChannel(client);
+        var channel=new DiscordNotificationChannel(new DiscordNotificationService(client,org.mockito.Mockito.mock(DiscordWebhookClient.class)));
         var product=TestSupport.snapshot("50","100");
         var analysis=new DiscountService(TestSupport.config()).analyze(null,product,List.of(),null,false);
         var alert=new PriceAlert(1L,product,analysis,product.currentPrice());
@@ -87,7 +87,7 @@ class DiscordTest {
         var client=WebClient.builder().exchangeFunction(request->{
             captured.set(request); return Mono.just(ClientResponse.create(HttpStatus.OK).body("{\"id\":\"12345\"}").build());
         }).build();
-        var channel=new DiscordNotificationChannel(new DiscordWebhookClient(client,webhook));
+        var channel=new DiscordNotificationChannel(new DiscordNotificationService(new DiscordWebhookClient(client,webhook),org.mockito.Mockito.mock(DiscordWebhookClient.class)));
         var product=TestSupport.snapshot("50","100");
         var analysis=new DiscountService(TestSupport.config()).analyze(null,product,List.of(),null,false);
         var alert=new PriceAlert(1L,product,analysis,product.currentPrice());

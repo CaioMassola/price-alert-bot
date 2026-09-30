@@ -1,5 +1,16 @@
 # Registro de validação
 
+## Steam, Epic Games e canais separados — 30/09/2026
+
+- `mvnw -Dpostgres=true clean verify`: 126 testes, 125 aprovados, zero falhas/erros e um teste HTTP externo opt-in não executado. JaCoCo: 776/776 linhas, 772/772 caminhos condicionais e 5.977/5.977 instruções (100%); zero violações Checkstyle.
+- Build Docker/Linux aprovado com as mesmas regras de cobertura; três testes PostgreSQL opt-in não executados nessa etapa. Auxiliar OAuth: três testes Node aprovados. Sintaxe de `health.js` validada e scanner de segredos sem achados.
+- Testes cobrem normalização em reais, deduplicação, filtros de promoção ativa, preços inválidos, promoções futuras/expiradas, jogos gratuitos temporários, exclusividade de roteamento, webhook ausente e limites de envio independentes.
+- Migração V3 testada no H2 e PostgreSQL; aceita preço zero, mantém preços existentes e rejeita preços negativos. Pipeline com Epic gratuita persiste produto, histórico e alerta sem duplicação.
+- Backup local do PostgreSQL criado antes da atualização. Compose recriado preservando banco e volume OAuth. Migração V3 aplicada e `/actuator/health` retornou `UP`; `/api/status` confirmou os dois webhooks configurados. Nenhuma credencial é incluída neste registro.
+- Primeira rodada real: cinco ofertas Steam e três Epic coletadas e persistidas. Os oito alertas ficaram `SENT` após confirmação do Discord (`wait=true`), exclusivamente pelo webhook de jogos. Limites locais preservados em 10%. Mensagem de boas-vindas adicional enviada ao canal de jogos a pedido do usuário, também confirmada pelo Discord.
+- Na mesma rodada, KaBuM coletou cinco produtos; Mercado Livre e Amazon retornaram ausência de produtos reconhecíveis (`422`). Esses resultados não impediram o processamento das lojas de jogos e não significam que essas duas integrações tenham sido corrigidas nesta alteração.
+- Limites: Steam monitora aplicativos do feed de ofertas em destaque; Epic monitora promoções ativas do feed `freeGamesPromotions`. Até cinco produtos por feed por rodada; não há cobertura integral dos catálogos. Ambas respeitam os percentuais mínimos do ambiente e usam exclusivamente o webhook de jogos.
+
 ## Cobertura completa — 29/09/2026
 
 - `mvnw -Dpostgres=true clean verify`: 116 testes, 115 aprovados, zero falhas e um teste HTTP externo opt-in não executado. PostgreSQL temporário; nenhuma chamada real às lojas ou ao Discord.

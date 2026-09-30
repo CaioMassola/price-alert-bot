@@ -36,7 +36,8 @@ public class MonitoringService {
         for(int i=0;i<Math.min(4,config.queries().size());i++) {
             String query=config.queries().get(queryIndex);
             queryIndex=(queryIndex+1)%config.queries().size();
-            for(var monitor:monitors) add(discovery,new Job(monitor.getStore(),MonitorRequest.search(query),null,false));
+            for(var monitor:monitors) add(discovery,new Job(monitor.getStore(),MonitorRequest.search(
+                monitor.getStore().isGameStore()?"promotions":query),null,false));
         }
     }
     private void add(Deque<Job> queue,Job job) {
@@ -84,6 +85,7 @@ public class MonitoringService {
     private String nextStep(Store store,int status) {
         if(status==429) return "Aguarde o intervalo da loja; não é necessário reiniciar o bot.";
         return switch(store) {
+            case STEAM, EPIC -> "Verifique disponibilidade do feed publico de promocoes e a configuracao do webhook de jogos.";
             case MERCADO_LIVRE -> "Para a API oficial, configure MERCADO_LIVRE_ACCESS_TOKEN e valide as permissões de consulta. Cadastro e token não garantem acesso ao catálogo. Veja docs/ACESSO-LOJAS.md.";
             case AMAZON -> "O coletor atual usa páginas públicas. A alternativa oficial exige aprovação no Amazon Associados e uma integração com Creators API, ainda não implementada. Veja docs/ACESSO-LOJAS.md.";
             case KABUM -> "Verifique disponibilidade da loja e compatibilidade do parser com o JSON público.";

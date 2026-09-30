@@ -3,7 +3,7 @@ const health = document.querySelector('#health');
 const discord = document.querySelector('#discord');
 const stores = document.querySelector('#stores');
 const storeError = document.querySelector('#store-error');
-const names = { KABUM: 'KaBuM', MERCADO_LIVRE: 'Mercado Livre', AMAZON: 'Amazon' };
+const names = { KABUM: 'KaBuM', MERCADO_LIVRE: 'Mercado Livre', AMAZON: 'Amazon', STEAM: 'Steam', EPIC: 'Epic Games' };
 const states = { OK: 'Coleta funcionando', UNAVAILABLE: 'Coleta indisponível', ERROR: 'Erro na coleta', NOT_CHECKED: 'Aguardando coleta' };
 
 async function getJson(url, allowUnhealthy = false) {
@@ -29,7 +29,7 @@ async function update() {
     health.className = `state ${status === 'UP' ? 'good' : 'bad'}`;
     stores.replaceChildren();
     if (statusResult.status === 'fulfilled' && Array.isArray(statusResult.value.stores)) {
-      discord.textContent = statusResult.value.discordConfigured ? 'Discord configurado — isso não confirma a entrega de mensagens.' : 'Discord não configurado.';
+      discord.textContent = 'Discord principal: ' + (statusResult.value.discordConfigured ? 'configurado' : 'não configurado') + '. Discord de jogos: ' + (statusResult.value.discordGamesConfigured ? 'configurado' : 'não configurado') + '. Isso não confirma a entrega de mensagens.';
       storeError.textContent = '';
       for (const store of statusResult.value.stores.filter(Boolean)) {
         const card = element('article', '');

@@ -67,7 +67,8 @@ public class ApiController {
     @GetMapping("/stores") public List<MonitoringService.StoreHealth> stores() { return monitoring.health(); }
     @io.swagger.v3.oas.annotations.Operation(summary="Consultar configuração do Discord e estado das lojas")
     @GetMapping("/status") public Object status() {
-        return Map.of("discordConfigured",notifications.configured(),"stores",monitoring.health());
+        return Map.of("discordConfigured",notifications.configured(Store.KABUM),
+            "discordGamesConfigured",notifications.configured(Store.STEAM),"stores",monitoring.health());
     }
     public record TrackRequest(
         @io.swagger.v3.oas.annotations.media.Schema(example="KABUM") @NotNull Store store,
