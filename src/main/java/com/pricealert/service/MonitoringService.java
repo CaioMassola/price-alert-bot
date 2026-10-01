@@ -16,11 +16,11 @@ public class MonitoringService {
     private final TrackedProductRepository tracked;
     private final ProductService products;
     private final MonitorConfig config;
-    private final Deque<Job> priority=new ArrayDeque<>(), discovery=new ArrayDeque<>();
+    private final Lane regular=new Lane(), games=new Lane();
     private final Set<String> queued=new HashSet<>();
     private final Map<Store,StoreHealth> health=new ConcurrentHashMap<>();
     private int queryIndex;
-    private boolean discoveryRunning;
+    private static class Lane { final Deque<Job> priority=new ArrayDeque<>(), discovery=new ArrayDeque<>(); boolean running; }
     public MonitoringService(List<StoreMonitor> monitors,TrackedProductRepository tracked,ProductService products,MonitorConfig config) {
         this.monitors=monitors.stream().sorted(Comparator.comparing(m->m.getStore().ordinal())).toList();
         this.tracked=tracked; this.products=products; this.config=config;
@@ -28,26 +28,34 @@ public class MonitoringService {
     }
     public synchronized void monitorTrackedProducts() {
         for(var product:tracked.findByActiveTrueOrderByIdAsc())
-            add(priority,new Job(product.store,MonitorRequest.product(product.url),product.targetPrice,true));
+            add(lane(product.store.isGameStore()).priority,new Job(product.store,MonitorRequest.product(product.url),product.targetPrice,true));
     }
     public synchronized void discoverPromotions() {
-        if(!config.promotionsEnabled() || discoveryRunning || !discovery.isEmpty()) return;
+        if(!config.promotionsEnabled()) return;
+        discover(regular,false); discover(games,true);
+    }
+    private Lane lane(boolean game) { return game?games:regular; }
+    private void discover(Lane lane,boolean game) {
+        if(lane.running || !lane.discovery.isEmpty()) return;
         // Mix four consecutive terms from the category-interleaved list; never accumulate rounds.
         for(int i=0;i<Math.min(4,config.queries().size());i++) {
             String query=config.queries().get(queryIndex);
-            queryIndex=(queryIndex+1)%config.queries().size();
-            for(var monitor:monitors) add(discovery,new Job(monitor.getStore(),MonitorRequest.search(
+            if(!game) queryIndex=(queryIndex+1)%config.queries().size();
+            for(var monitor:monitors) if(monitor.getStore().isGameStore()==game) add(lane.discovery,new Job(monitor.getStore(),MonitorRequest.search(
                 monitor.getStore().isGameStore()?"promotions":query),null,false));
         }
     }
     private void add(Deque<Job> queue,Job job) {
         if(queued.add(job.key())) queue.addLast(job);
     }
-    public void runNext() {
+    public void runNext() { runNext(false); }
+    public void runNext(boolean game) {
+        Lane lane=lane(game);
         Job job;
         synchronized(this) {
-            job=priority.isEmpty()?discovery.pollFirst():priority.pollFirst();
-            if(job!=null && !job.tracked) discoveryRunning=true;
+            if(lane.running) return;
+            job=lane.priority.isEmpty()?lane.discovery.pollFirst():lane.priority.pollFirst();
+            if(job!=null) lane.running=true;
         }
         if(job==null) return;
         try {
@@ -68,7 +76,7 @@ public class MonitoringService {
             health.put(job.store,new StoreHealth(job.store,"ERROR",Instant.now(),"COLLECTION_OR_STORAGE_ERROR",0,
                 "Falha de coleta ou persistência.", "Consulte os logs locais da aplicação."));
             log.warn("Monitoring failed store={} type={}",job.store,e.getClass().getSimpleName());
-        } finally { synchronized(this) { queued.remove(job.key()); if(!job.tracked) discoveryRunning=false; } }
+        } finally { synchronized(this) { queued.remove(job.key()); lane.running=false; } }
     }
     public List<StoreHealth> health() { return Arrays.stream(Store.values()).map(health::get).toList(); }
     private String failureDescription(int status) {

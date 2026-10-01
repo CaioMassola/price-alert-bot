@@ -59,6 +59,8 @@ Sem oferta elegível não é enviada saudação isolada. O cartão mostra loja, 
 
 A cada 15 minutos, uma rodada mistura **quatro termos**, intercalados entre as lojas. Se a rodada anterior estiver pendente, a próxima aguarda. Produtos rastreados têm prioridade; as consultas respeitam intervalo de 15 segundos, limites e bloqueios das lojas.
 
+A coleta usa dois grupos em paralelo: **Steam/Epic** e **demais lojas**. Ambos os workers iniciam 20 segundos após a aplicação subir e processam suas próprias filas; dentro de cada grupo, as lojas são consultadas uma por vez. A cada rodada, um grupo ocupado não impede o outro de receber novos trabalhos. O intervalo HTTP é independente por grupo, com bloqueios e limites preservados por loja. Assim, uma consulta demorada no Mercado Livre ou na Amazon não atrasa a coleta dos games. O envio ao Discord continua em uma tarefa separada da coleta, com fila compartilhada e mensagens sequenciais direcionadas ao webhook correspondente.
+
 As 27 buscas padrão cobrem celulares, PS5/Xbox/Switch, jogos, gift cards, notebooks, periféricos e componentes de PC. Cada busca coleta até cinco produtos. Percorrer a lista exige aproximadamente sete rodadas (1h45 ou mais, conforme as lojas). É uma amostragem por relevância, não uma varredura completa ou classificação estrita de categorias. Não há ranking global de todas as ofertas.
 
 A descoberta exige **25% de desconto** sobre a referência da loja ou, com histórico suficiente, sobre a média histórica. Um novo menor preço sozinho não ignora o mínimo. O desconto da loja é marcado como não confirmado pelo histórico quando faltam dados. Histórico suficiente exige três amostras e sete dias.

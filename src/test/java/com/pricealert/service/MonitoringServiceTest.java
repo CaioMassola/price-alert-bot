@@ -8,6 +8,29 @@ import java.util.List;
 import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.*;
 class MonitoringServiceTest {
+    @Test void gamesFinishWhileOtherStoreIsBlockedWithoutOverlappingWorkers() throws Exception {
+        var entered=new java.util.concurrent.CountDownLatch(1);
+        var release=new java.util.concurrent.CountDownLatch(1);
+        var main=mock(StoreMonitor.class); when(main.getStore()).thenReturn(Store.KABUM);
+        var game=mock(StoreMonitor.class); when(game.getStore()).thenReturn(Store.STEAM);
+        when(main.searchProducts(any())).thenAnswer(call->{ entered.countDown(); release.await(5,java.util.concurrent.TimeUnit.SECONDS); return List.of(); });
+        when(game.searchProducts(any())).thenReturn(List.of());
+        var service=new MonitoringService(List.of(main,game),mock(TrackedProductRepository.class),mock(ProductService.class),TestSupport.config());
+        service.discoverPromotions();
+        try(var executor=java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first=executor.submit(()->service.runNext());
+            try {
+                assertThat(entered.await(2,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                service.runNext(); service.discoverPromotions();
+                executor.submit(()->service.runNext(true)).get(2,java.util.concurrent.TimeUnit.SECONDS);
+                assertThat(first.isDone()).isFalse();
+                verify(game).searchProducts(MonitorRequest.search("promotions"));
+                service.runNext(true); verify(game,times(1)).searchProducts(any());
+                verify(main,times(1)).searchProducts(any());
+            } finally { release.countDown(); }
+            first.get(2,java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
     @Test void disabledDiscoveryAndReentrantRoundDoNotAddJobs() {
         var config=mock(com.pricealert.config.MonitorConfig.class);
         var monitor=mock(StoreMonitor.class); when(monitor.getStore()).thenReturn(Store.KABUM);
@@ -27,14 +50,15 @@ class MonitoringServiceTest {
             when(tracked.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(entry));
             var service=new MonitoringService(List.of(monitor),tracked,mock(ProductService.class),TestSupport.config());
             var scheduler=new com.pricealert.scheduler.PriceMonitorScheduler(service);
-            scheduler.promotions(); scheduler.tracked(); scheduler.tracked(); scheduler.work();
+            scheduler.promotions(); scheduler.tracked(); scheduler.tracked();
+            if(store.isGameStore()) scheduler.games(); else scheduler.work();
             verify(monitor).searchProducts(MonitorRequest.product(entry.url));
             var health=service.health().stream().filter(h->h!=null && h.store()==store).findFirst().orElseThrow();
             assertThat(health.error()).isEqualTo("HTTP_OR_PARSER_"+code);
             assertThat(health.detail()).isNotBlank().doesNotContain("private detail");
             assertThat(health.nextStep()).isNotBlank();
             doThrow(new IllegalStateException("private detail")).when(monitor).searchProducts(any());
-            scheduler.work();
+            if(store.isGameStore()) scheduler.games(); else scheduler.work();
             assertThat(service.health().stream().filter(h->h!=null).findFirst().orElseThrow().status()).isEqualTo("ERROR");
         }
     }

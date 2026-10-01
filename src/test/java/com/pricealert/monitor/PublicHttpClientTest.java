@@ -9,6 +9,25 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.time.*;
 import static org.assertj.core.api.Assertions.*;
 class PublicHttpClientTest {
+    @Test void slowRegularRequestDoesNotHoldGamesHttpLock() throws Exception {
+        var entered=new java.util.concurrent.CountDownLatch(1);
+        var response=reactor.core.publisher.Sinks.<ClientResponse>one();
+        var web=WebClient.builder().exchangeFunction(request->{
+            if(request.url().getHost().contains("kabum")) { entered.countDown(); return response.asMono(); }
+            return Mono.just(ClientResponse.create(HttpStatus.OK).body("game").build());
+        }).build();
+        var http=new PublicHttpClient(web,TestSupport.config());
+        try(var executor=java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var regular=executor.submit(()->http.get(Store.KABUM,"https://www.kabum.com.br",null));
+            try {
+                assertThat(entered.await(2,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                assertThat(executor.submit(()->http.get(Store.STEAM,"https://store.steampowered.com",null))
+                    .get(2,java.util.concurrent.TimeUnit.SECONDS)).isEqualTo("game");
+                assertThat(regular.isDone()).isFalse();
+            } finally { response.tryEmitValue(ClientResponse.create(HttpStatus.OK).body("main").build()); }
+            assertThat(regular.get(2,java.util.concurrent.TimeUnit.SECONDS)).isEqualTo("main");
+        }
+    }
     @Test void handlesHttpBoundaryStatusesAndAllChallengeMarkers() {
         for(int code:new int[]{199,302,408}) {
             var web=WebClient.builder().exchangeFunction(r->Mono.just(ClientResponse.create(org.springframework.http.HttpStatusCode.valueOf(code)).build())).build();

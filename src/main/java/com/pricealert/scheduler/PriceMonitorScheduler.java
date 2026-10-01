@@ -12,5 +12,7 @@ public class PriceMonitorScheduler {
     public void promotions() { service.discoverPromotions(); }
     @Scheduled(fixedDelayString="PT5S",initialDelayString="PT20S")
     public void work() { service.runNext(); }
+    @Scheduled(fixedDelayString="PT5S",initialDelayString="PT20S")
+    public void games() { service.runNext(true); }
 }
 

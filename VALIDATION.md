@@ -1,5 +1,12 @@
 # Registro de validação
 
+## Coleta de games em paralelo — 01/10/2026
+
+- Filas e workers separados para games e demais lojas, com início simultâneo; requisições HTTP têm espera independente por grupo. Cada grupo mantém execução sequencial e impede sobreposição de workers.
+- Testes de concorrência confirmaram que a coleta e o HTTP dos games concluem enquanto uma consulta de outra loja permanece bloqueada. `clean verify` com PostgreSQL e build Docker aprovados: zero violações Checkstyle e cobertura de 790/790 linhas, 778/778 branches e 6.101/6.101 instruções.
+- Validação real às 13h40 (Brasília): Steam e Mercado Livre iniciaram às 13:40:03.199 em threads diferentes. Steam concluiu cinco produtos às 13:40:03.888 e Epic três às 13:40:18.796, enquanto Mercado Livre ainda era consultado. API `UP` após a atualização.
+- O envio ao Discord permanece separado da coleta, com mensagens sequenciais em fila compartilhada e roteamento para o webhook de cada grupo. Ofertas idênticas não são reenviadas por causa da reinicialização.
+
 ## Steam, Epic Games e canais separados — 30/09/2026
 
 - `mvnw -Dpostgres=true clean verify`: 126 testes, 125 aprovados, zero falhas/erros e um teste HTTP externo opt-in não executado. JaCoCo: 776/776 linhas, 772/772 caminhos condicionais e 5.977/5.977 instruções (100%); zero violações Checkstyle.

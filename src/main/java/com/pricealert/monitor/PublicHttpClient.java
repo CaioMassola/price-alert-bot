@@ -11,10 +11,11 @@ import java.util.*;
 public class PublicHttpClient {
     private final WebClient client;
     private final MonitorConfig config;
-    private final Map<Store,Instant> blockedUntil=new EnumMap<>(Store.class);
-    private final Map<Store,Integer> blockedStatus=new EnumMap<>(Store.class);
-    private final Map<Store,String> rejectedTokens=new EnumMap<>(Store.class);
-    private Instant nextRequest=Instant.EPOCH;
+    private final Map<Store,Instant> blockedUntil=Collections.synchronizedMap(new EnumMap<>(Store.class));
+    private final Map<Store,Integer> blockedStatus=Collections.synchronizedMap(new EnumMap<>(Store.class));
+    private final Map<Store,String> rejectedTokens=Collections.synchronizedMap(new EnumMap<>(Store.class));
+    private final Map<Boolean,Instant> nextRequest=new java.util.concurrent.ConcurrentHashMap<>();
+    private final Object gamesLock=new Object(), regularLock=new Object();
     private final Sleeper sleeper;
     @org.springframework.beans.factory.annotation.Autowired
     public PublicHttpClient(WebClient client, MonitorConfig config) { this(client,config,Thread::sleep); }
@@ -22,16 +23,23 @@ public class PublicHttpClient {
         this.client=client; this.config=config; this.sleeper=sleeper;
     }
     @FunctionalInterface interface Sleeper { void sleep(long milliseconds) throws InterruptedException; }
-    public synchronized void authenticationRenewed(Store store) {
+    public void authenticationRenewed(Store store) {
+        synchronized(lock(store)) { clearAuthentication(store); }
+    }
+    private Object lock(Store store) { return store.isGameStore()?gamesLock:regularLock; }
+    private void clearAuthentication(Store store) {
         if(blockedStatus.getOrDefault(store,0)==401) { blockedUntil.remove(store); blockedStatus.remove(store); rejectedTokens.remove(store); }
     }
-    public synchronized String get(Store store, String url, String token) {
+    public String get(Store store, String url, String token) {
+        synchronized(lock(store)) { return request(store,url,token); }
+    }
+    private String request(Store store,String url,String token) {
         URI uri=store.validateUrl(url);
         if(blockedStatus.getOrDefault(store,0)==401 && !Objects.equals(token,rejectedTokens.get(store))) authenticationRenewed(store);
         if(blockedUntil.getOrDefault(store,Instant.EPOCH).isAfter(Instant.now()))
             throw new StoreAccessException(blockedStatus.getOrDefault(store,429),"Loja em pausa apos erro ou limite de acesso");
         for(int attempt=0;attempt<3;attempt++) {
-            pause();
+            pause(store.isGameStore());
             Response response;
             try {
                 var request=client.get().uri(uri).header("User-Agent","PriceAlertBot/0.1 (personal price monitoring)")
@@ -63,7 +71,7 @@ public class PublicHttpClient {
                 throw new StoreAccessException(status,"Acesso restrito pela loja");
             }
             if(status==408 || status>=500) {
-                if(attempt<2) { nextRequest=Instant.now().plusSeconds(30L << attempt); continue; }
+                if(attempt<2) { nextRequest.put(store.isGameStore(),Instant.now().plusSeconds(30L << attempt)); continue; }
                 blockedUntil.put(store,Instant.now().plusSeconds(120));
                 blockedStatus.put(store,status);
             }
@@ -79,12 +87,12 @@ public class PublicHttpClient {
         }
         throw new StoreAccessException(310,"Redirecionamentos excessivos");
     }
-    private void pause() {
-        long delay=Duration.between(Instant.now(),nextRequest).toMillis();
+    private void pause(boolean games) {
+        long delay=Duration.between(Instant.now(),nextRequest.getOrDefault(games,Instant.EPOCH)).toMillis();
         if(delay>0) try { sleeper.sleep(delay); } catch(InterruptedException e) {
             Thread.currentThread().interrupt(); throw new StoreAccessException(0,"Coleta interrompida");
         }
-        nextRequest=Instant.now().plus(config.requestGap());
+        nextRequest.put(games,Instant.now().plus(config.requestGap()));
     }
     public static Instant retryAt(String value) {
         try { return Instant.now().plusSeconds(Math.max(60,Long.parseLong(value))); }
